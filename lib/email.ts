@@ -2,6 +2,7 @@ import type { Alert } from "./types";
 
 export const EMAILJS_SEND_URL = "https://api.emailjs.com/api/v1.0/email/send";
 export const EMAIL_RECIPIENT = "devops@kuroshioai.com";
+export const EMAIL_CC = "noufal@kuroshioai.com";
 
 const LIMITS = {
   event: 160,

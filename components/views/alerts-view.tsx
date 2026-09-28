@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { acknowledgeAlert } from "@/lib/domain";
-import { EMAIL_RECIPIENT, getEmailJsConfig, sendAlertEmail } from "@/lib/email";
+import { EMAIL_CC, EMAIL_RECIPIENT, getEmailJsConfig, sendAlertEmail } from "@/lib/email";
 import type { Alert } from "@/lib/types";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
@@ -99,7 +99,7 @@ export function AlertsView() {
         <div>
           <div className="eyebrow">Attention queue · {openCount} open</div>
           <CardTitle>Alerts</CardTitle>
-          {state.role !== "Manager" && emailConfigured && <p className="mt-2 max-w-xl text-xs leading-relaxed text-slate-500" role="status">Manual email to {EMAIL_RECIPIENT}. Sends only when you click.</p>}
+          {state.role !== "Manager" && emailConfigured && <p className="mt-2 max-w-xl text-xs leading-relaxed text-slate-500" role="status">Manual email to {EMAIL_RECIPIENT}; CC {EMAIL_CC}. Sends only when you click.</p>}
           {state.role !== "Manager" && !emailConfigured && <p className="mt-2 max-w-xl text-xs leading-relaxed text-slate-500" role="status">Email is not configured for this demo.</p>}
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
