@@ -1,6 +1,6 @@
 # KeeTrack demo
 
-KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/import`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. No customer data, external database, email, WhatsApp or messaging integration is used.
+KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. No customer data, external database, email, WhatsApp or messaging integration is used.
 
 ## Setup
 
@@ -24,11 +24,11 @@ npm run build
 
 ## Five-to-seven-minute walkthrough
 
-1. Open Import, download **Filled sample .xlsx**, then upload it. You can also click **Preview filled sample**. The sample uses the visible demo date and includes HAR-001, LIF-014, LIC-023, ANC-009, a valid certificate and retired HAR-004.
+1. Start on Dashboard. Open **Demo Controls** to download **Filled sample .xlsx**, then upload it in **Import**. You can also click **Preview filled sample** in Demo Controls to open the import review screen. The sample uses the visible demo date and includes HAR-001, LIF-014, LIC-023, ANC-009, a valid certificate and retired HAR-004.
 2. Review the six valid rows and click **Import valid rows**. Open Dashboard to see the 30-day, 7-day, today and overdue queues.
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.
-5. Use Demo Controls to set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation.
+5. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
 Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [github.com/Kuroshio-AI/keetrack](https://github.com/Kuroshio-AI/keetrack).
 

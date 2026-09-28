@@ -20,25 +20,25 @@ import { DemoControlsView } from "@/components/views/demo-controls-view";
 import type { Role } from "@/lib/types";
 
 const nav = [
-  { id: "import", label: "Import", icon: Import },
   { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "register", label: "Register", icon: ClipboardList },
   { id: "inspections", label: "Inspections", icon: CalendarCheck },
   { id: "approvals", label: "Approvals", icon: BookOpenCheck },
   { id: "certificates", label: "Certificates", icon: ShieldCheck },
   { id: "alerts", label: "Alerts", icon: BellRing },
+  { id: "import", label: "Import", icon: Import },
   { id: "demo-controls", label: "Demo Controls", icon: Settings2 },
 ] as const;
 
 const titles: Record<string, { eyebrow: string; title: string; description: string }> = {
-  import: { eyebrow: "Start here", title: "Import register", description: "Validate a local register, reconcile the rows, then work the live demo." },
+  import: { eyebrow: "Register intake", title: "Import register", description: "Validate a local register and review the rows before importing." },
   dashboard: { eyebrow: "Operations overview", title: "Dashboard", description: "Deadlines, review work and recent movement for this demo date." },
   register: { eyebrow: "Asset register", title: "Asset register", description: "Search equipment, licences and their linked obligations." },
   inspections: { eyebrow: "Field work", title: "Inspections", description: "Draft a mobile-friendly checklist, then send it for review." },
   approvals: { eyebrow: "Quality gate", title: "Approvals", description: "Return work with a correction, or issue a certificate with an explicit expiry." },
   certificates: { eyebrow: "Attestation", title: "Certificates", description: "Print a branded demo certificate and share a time-bound public snapshot." },
   alerts: { eyebrow: "Attention queue", title: "Alerts", description: "Acknowledge an alert without losing the underlying obligation." },
-  "demo-controls": { eyebrow: "Scenario lab", title: "Demo Controls", description: "Change the app date, switch roles and exercise the main workflows." },
+  "demo-controls": { eyebrow: "Scenario lab", title: "Demo Controls", description: "Download templates and sample data, change the demo date and exercise the main workflows." },
 };
 
 function View({ view }: { view: string }): ReactNode {
@@ -50,14 +50,14 @@ function View({ view }: { view: string }): ReactNode {
     case "certificates": return <CertificatesView />;
     case "alerts": return <AlertsView />;
     case "demo-controls": return <DemoControlsView />;
-    case "import":
-    default: return <ImportView />;
+    case "import": return <ImportView />;
+    default: return <DashboardView />;
   }
 }
 
 function AppFrame({ initialView }: { initialView: string }) {
   const pathname = usePathname();
-  const view = pathname?.split("/")[1] || initialView || "import";
+  const view = pathname?.split("/")[1] || initialView || "dashboard";
   const { state, setRole, saveError, storageWarning, hydrated } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -81,13 +81,13 @@ function AppFrame({ initialView }: { initialView: string }) {
     document.addEventListener("keydown", onKey); firstNavLink.current?.focus();
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = previousOverflow; menuButton.current?.focus(); };
   }, [mobileOpen, isMobile]);
-  const meta = titles[view] ?? titles.import;
+  const meta = titles[view] ?? titles.dashboard;
   const openAlerts = state.alerts.filter((alert) => alert.status === "open").length;
 
   return <div className="app-grid min-h-screen lg:flex">
     <aside ref={sidebar} aria-hidden={isMobile && !mobileOpen} inert={isMobile && !mobileOpen ? true : undefined} className={`fixed inset-y-0 left-0 z-40 flex w-[268px] flex-col border-r border-[#17496d] bg-[#0b3151] px-4 py-5 text-white transition-transform lg:static lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="flex items-center justify-between px-2">
-        <Link href="/import" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 focus-ring rounded-md">
+        <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 focus-ring rounded-md">
           <span className="grid size-10 place-items-center rounded-xl bg-white text-[#0b3151] shadow-lg"><span className="text-xl font-black">K</span></span>
           <span><span className="block text-[19px] font-bold tracking-[-.03em]">KeeTrack</span><span className="block text-[10px] font-bold uppercase tracking-[.15em] text-[#a8c7dd]">Kee Safety operations</span></span>
         </Link>
