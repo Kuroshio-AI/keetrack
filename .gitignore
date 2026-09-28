@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+.env*
+!.env.example
+.vercel/
+.DS_Store
+*.tsbuildinfo
+/KeeTrack_Demo_WebApp_PRD_LocalStorage_v2.docx
+/KeeTrack_Kee_Safety_Commercial_Proposal.pdf
+uploads/
+tmp/
+test-results/
+playwright-report/
+.vercel

@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: 215 37% 17%;
+  --paper: 210 33% 97%;
+  --line: 210 24% 88%;
+  --navy: 207 78% 21%;
+  --accent: 199 84% 39%;
+  --danger: 358 57% 43%;
+  --warning: 39 92% 39%;
+}
+
+* { box-sizing: border-box; }
+html { background: hsl(var(--paper)); }
+body { margin: 0; background: hsl(var(--paper)); color: hsl(var(--ink)); font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif; font-size: 15px; }
+button, input, select, textarea { font: inherit; }
+a { color: inherit; text-decoration: none; }
+::selection { background: #bee3f2; color: #082d4c; }
+
+.app-grid { background-image: linear-gradient(rgba(14, 65, 105, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(14, 65, 105, .035) 1px, transparent 1px); background-size: 24px 24px; }
+.eyebrow { letter-spacing: .12em; text-transform: uppercase; font-size: 11px; font-weight: 800; color: #6d8495; }
+.focus-ring:focus-visible { outline: 3px solid rgba(22, 132, 171, .32); outline-offset: 2px; }
+@media print {
+  .print-hidden { display: none !important; }
+  body { background: white; }
+  body:has(.certificate-print-area[open]) > *:not(.certificate-print-area) { display: none !important; }
+  .certificate-print-area[open] { position: static; width: 100%; max-width: none; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; }
+  .certificate-print-area::backdrop { display: none; }
+  @page { size: A4; margin: 12mm; }
+}

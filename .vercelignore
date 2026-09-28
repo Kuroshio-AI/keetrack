@@ -1,0 +1,11 @@
+.git/
+.env*
+node_modules/
+.next/
+coverage/
+*.docx
+*.pdf
+uploads/
+tmp/
+test-results/
+playwright-report/
