@@ -22,8 +22,14 @@ type EmailFeedback = {
 type WhatsAppConfigState = {
   phase: "loading" | "ready" | "error";
   configured: boolean;
+  authorized: boolean;
   recipientLabel?: string;
   message?: string;
+};
+
+type WhatsAppSetupFeedback = {
+  state: "sending" | "success" | "error";
+  message: string;
 };
 
 export function AlertsView() {
@@ -34,18 +40,24 @@ export function AlertsView() {
   const [asset, setAsset] = useState("");
   const [emailFeedback, setEmailFeedback] = useState<Record<string, EmailFeedback>>({});
   const [localAccepted, setLocalAccepted] = useState<Record<string, string>>({});
-  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppConfigState>({ phase: "loading", configured: false });
+  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppConfigState>({ phase: "loading", configured: false, authorized: false });
   const [whatsappAccessKey, setWhatsappAccessKey] = useState("");
+  const [whatsappSetupFeedback, setWhatsappSetupFeedback] = useState<WhatsAppSetupFeedback | undefined>();
   const [whatsappFeedback, setWhatsappFeedback] = useState<Record<string, EmailFeedback>>({});
   const [whatsappLocalAccepted, setWhatsappLocalAccepted] = useState<Record<string, string>>({});
   const lastEmailRequestAt = useRef(0);
   const emailInFlight = useRef(false);
   const lastWhatsAppRequestAt = useRef(0);
   const whatsappInFlight = useRef(false);
+  const whatsappSetupInFlight = useRef(false);
+  const whatsappDisconnectRef = useRef<HTMLButtonElement>(null);
+  const whatsappKeyRef = useRef<HTMLInputElement>(null);
   const emailConfigured = Boolean(getEmailJsConfig());
   const isEmailSending = Object.values(emailFeedback).some((feedback) => feedback.state === "sending");
   const isWhatsAppSending = Object.values(whatsappFeedback).some((feedback) => feedback.state === "sending");
   const whatsappConfigured = whatsappStatus.phase === "ready" && whatsappStatus.configured;
+  const whatsappAuthorized = whatsappConfigured && whatsappStatus.authorized;
+  const isWhatsAppSetupBusy = whatsappSetupFeedback?.state === "sending";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,10 +67,10 @@ export function AlertsView() {
         const body: unknown = await response.json().catch(() => undefined);
         if (!response.ok || !body || typeof body !== "object") throw new Error("Trial messaging configuration is unavailable.");
         const candidate = body as Record<string, unknown>;
-        if (!ignore) setWhatsappStatus({ phase: "ready", configured: candidate.configured === true, recipientLabel: typeof candidate.recipientLabel === "string" ? candidate.recipientLabel : undefined });
+        if (!ignore) setWhatsappStatus({ phase: "ready", configured: candidate.configured === true, authorized: candidate.authorized === true, recipientLabel: typeof candidate.recipientLabel === "string" ? candidate.recipientLabel : undefined });
       })
       .catch((reason) => {
-        if (!ignore && !(reason instanceof DOMException && reason.name === "AbortError")) setWhatsappStatus({ phase: "error", configured: false, message: "Trial messaging configuration is unavailable." });
+        if (!ignore && !(reason instanceof DOMException && reason.name === "AbortError")) setWhatsappStatus({ phase: "error", configured: false, authorized: false, message: "Trial messaging configuration is unavailable." });
       });
     return () => { ignore = true; controller.abort(); };
   }, []);
@@ -80,6 +92,66 @@ export function AlertsView() {
 
   function setWhatsAppFeedback(alertId: string, feedback: EmailFeedback) {
     setWhatsappFeedback((current) => ({ ...current, [alertId]: feedback }));
+  }
+
+  async function enableWhatsApp() {
+    if (whatsappSetupInFlight.current || whatsappInFlight.current) return;
+    if (!whatsappConfigured || whatsappAuthorized) return;
+    const key = whatsappAccessKey.trim();
+    if (!key) {
+      setWhatsappSetupFeedback({ state: "error", message: "Enter the demo access key to enable WhatsApp on this browser." });
+      return;
+    }
+    whatsappSetupInFlight.current = true;
+    setWhatsappSetupFeedback({ state: "sending", message: "Enabling WhatsApp on this browser…" });
+    try {
+      const response = await fetch("/api/alerts/whatsapp", {
+        method: "PATCH",
+        cache: "no-store",
+        headers: { Accept: "application/json", "Content-Type": "application/json", "x-keetrack-demo-key": key },
+        body: "{}",
+      });
+      const body: unknown = await response.json().catch(() => undefined);
+      const authorized = body && typeof body === "object" && (body as Record<string, unknown>).authorized === true;
+      if (!response.ok || !authorized) {
+        const message = body && typeof body === "object" && typeof (body as Record<string, unknown>).error === "string"
+          ? (body as Record<string, string>).error
+          : response.status === 401 ? "Invalid demo access key." : "WhatsApp could not be enabled on this browser.";
+        throw new Error(message);
+      }
+      setWhatsappStatus((current) => ({ ...current, phase: "ready", configured: true, authorized: true }));
+      setWhatsappAccessKey("");
+      setWhatsappSetupFeedback({ state: "success", message: "Enabled on this browser for 30 days." });
+      requestAnimationFrame(() => whatsappDisconnectRef.current?.focus());
+    } catch (reason) {
+      setWhatsappSetupFeedback({ state: "error", message: reason instanceof Error ? reason.message : "WhatsApp could not be enabled on this browser." });
+    } finally {
+      whatsappSetupInFlight.current = false;
+    }
+  }
+
+  async function disableWhatsApp() {
+    if (whatsappSetupInFlight.current || whatsappInFlight.current) return;
+    whatsappSetupInFlight.current = true;
+    setWhatsappSetupFeedback({ state: "sending", message: "Disconnecting this browser…" });
+    try {
+      const response = await fetch("/api/alerts/whatsapp", { method: "DELETE", cache: "no-store", headers: { Accept: "application/json" } });
+      const body: unknown = await response.json().catch(() => undefined);
+      if (!response.ok || !body || typeof body !== "object" || (body as Record<string, unknown>).authorized !== false) {
+        const message = body && typeof body === "object" && typeof (body as Record<string, unknown>).error === "string"
+          ? (body as Record<string, string>).error
+          : "WhatsApp could not be disconnected on this browser.";
+        throw new Error(message);
+      }
+      setWhatsappStatus((current) => ({ ...current, phase: "ready", authorized: false }));
+      setWhatsappAccessKey("");
+      setWhatsappSetupFeedback({ state: "success", message: "Disconnected on this browser." });
+      requestAnimationFrame(() => whatsappKeyRef.current?.focus());
+    } catch (reason) {
+      setWhatsappSetupFeedback({ state: "error", message: reason instanceof Error ? reason.message : "WhatsApp could not be disconnected on this browser." });
+    } finally {
+      whatsappSetupInFlight.current = false;
+    }
   }
 
   async function sendEmail(alert: Alert) {
@@ -129,14 +201,15 @@ export function AlertsView() {
   }
 
   async function sendWhatsAppTest(alert: Alert) {
+    if (whatsappSetupInFlight.current) return;
     const existingFeedback = whatsappFeedback[alert.id];
     if (existingFeedback?.state === "sending" || alert.whatsappSentAt || whatsappLocalAccepted[alert.id]) return;
     if (whatsappInFlight.current) {
       setWhatsAppFeedback(alert.id, { state: "error", message: "Another WhatsApp trial request is sending. Wait for its result before trying again." });
       return;
     }
-    if (!whatsappConfigured || !whatsappAccessKey.trim()) {
-      setWhatsAppFeedback(alert.id, { state: "error", message: "Enter the demo access key after trial messaging is configured." });
+    if (!whatsappConfigured || !whatsappAuthorized) {
+      setWhatsAppFeedback(alert.id, { state: "error", message: "Enable WhatsApp on this browser before sending." });
       return;
     }
     if (storageWarning) {
@@ -157,13 +230,17 @@ export function AlertsView() {
         response = await fetch("/api/alerts/whatsapp", {
           method: "POST",
           cache: "no-store",
-          headers: { Accept: "application/json", "Content-Type": "application/json", "x-keetrack-demo-key": whatsappAccessKey.trim() },
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
           body: JSON.stringify({ alertId: alert.id }),
         });
       } catch {
         throw new Error("WhatsApp status is unconfirmed. Check Twilio before retrying.");
       }
       const body: unknown = await response.json().catch(() => undefined);
+      if (response.status === 401) {
+        setWhatsappStatus((current) => ({ ...current, authorized: false }));
+        setWhatsappAccessKey("");
+      }
       if (!response.ok || !body || typeof body !== "object" || (body as Record<string, unknown>).accepted !== true) {
         const message = body && typeof body === "object" && typeof (body as Record<string, unknown>).error === "string" ? (body as Record<string, string>).error : "WhatsApp status is unconfirmed. Check Twilio before retrying.";
         throw new Error(message);
@@ -229,12 +306,23 @@ export function AlertsView() {
           <div>
             <div className="eyebrow text-accent">Twilio WhatsApp trial</div>
             <p className="mt-1 text-xs leading-relaxed text-slate-600">Sends this fixed sample regardless of the selected alert; actual asset details are not sent.</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">KeeTrack remembers this browser; Twilio’s trial recipient must still reconnect each session.</p>
             <p className="mt-2 rounded-md border border-white/80 bg-white/70 px-2 py-2 text-xs leading-relaxed text-navy">Alert: System downtime detected. Engineers notified. ETA to resolution: 2 hours. Reply STATUS for updates. Test message from Twilio.</p>
           </div>
           <div>
-            <label className="eyebrow block" htmlFor="whatsapp-demo-key">Demo access key</label>
-            <Input id="whatsapp-demo-key" type="password" autoComplete="off" value={whatsappAccessKey} onChange={(event) => setWhatsappAccessKey(event.target.value)} placeholder="Enter trial key" className="mt-1.5 w-full bg-white" />
-            <p className="mt-1 text-[11px] text-slate-500">Cleared when you leave this page. {whatsappConfigured ? whatsappStatus.recipientLabel : whatsappStatus.phase === "loading" ? "Checking trial configuration…" : whatsappStatus.message ?? "Trial messaging is not configured."}</p>
+            {whatsappAuthorized ? <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <div className="eyebrow text-[#187348]">Enabled on this browser</div>
+                <p className="mt-1 text-xs text-slate-600">{whatsappStatus.recipientLabel ?? "Fixed trial recipient"}</p>
+              </div>
+              <Button ref={whatsappDisconnectRef} type="button" variant="ghost" size="sm" disabled={isWhatsAppSetupBusy || isWhatsAppSending} onClick={() => void disableWhatsApp()}>Disconnect</Button>
+            </div> : whatsappConfigured ? <>
+              <label className="eyebrow block" htmlFor="whatsapp-demo-key">Demo access key</label>
+              <Input ref={whatsappKeyRef} id="whatsapp-demo-key" type="password" autoComplete="off" value={whatsappAccessKey} onChange={(event) => setWhatsappAccessKey(event.target.value)} placeholder="Enter trial key" className="mt-1.5 w-full bg-white" />
+              <Button type="button" variant="outline" size="sm" className="mt-2" disabled={!whatsappAccessKey.trim() || isWhatsAppSetupBusy} onClick={() => void enableWhatsApp()}>{isWhatsAppSetupBusy ? "Enabling…" : "Enable on this browser"}</Button>
+              <p className="mt-1 text-[11px] text-slate-500">Enable once; this browser stays authorized for 30 days. {whatsappStatus.recipientLabel ?? "Fixed trial recipient"}</p>
+            </> : <p className="text-xs leading-relaxed text-slate-500">{whatsappStatus.phase === "loading" ? "Checking trial configuration…" : whatsappStatus.message ?? "Trial messaging is not configured."}</p>}
+            {whatsappSetupFeedback && <p className={`mt-2 text-xs ${whatsappSetupFeedback.state === "error" ? "text-danger" : whatsappSetupFeedback.state === "success" ? "text-[#187348]" : "text-slate-500"}`} role={whatsappSetupFeedback.state === "error" ? "alert" : "status"} aria-live="polite">{whatsappSetupFeedback.message}</p>}
           </div>
         </div>}
     </CardHeader>
@@ -266,7 +354,7 @@ export function AlertsView() {
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {state.role !== "Manager" && alert.status === "open" && !alert.acknowledgedAt && <Button variant="outline" size="sm" onClick={() => update((current) => acknowledgeAlert(current, alert.id))}><Check data-icon="inline-start" />Acknowledge</Button>}
               {canSend && <Button variant="outline" size="sm" disabled={Boolean(storageWarning) || isEmailSending || Boolean(feedback?.state === "sending" || emailSent)} onClick={() => void sendEmail(alert)}><Mail data-icon="inline-start" />{feedback?.state === "sending" ? "Sending…" : emailSent ? "Email accepted" : "Send email"}</Button>}
-              {state.role !== "Manager" && <Button variant="outline" size="sm" disabled={!whatsappConfigured || !whatsappAccessKey.trim() || Boolean(storageWarning) || isWhatsAppSending || Boolean(whatsappAlertFeedback?.state === "sending" || whatsappSent)} onClick={() => void sendWhatsAppTest(alert)}><MessageCircle data-icon="inline-start" />{whatsappAlertFeedback?.state === "sending" ? "Sending…" : whatsappSent ? "WhatsApp accepted" : "Send WhatsApp test"}</Button>}
+              {state.role !== "Manager" && <Button variant="outline" size="sm" disabled={!whatsappAuthorized || isWhatsAppSetupBusy || Boolean(storageWarning) || isWhatsAppSending || Boolean(whatsappAlertFeedback?.state === "sending" || whatsappSent)} onClick={() => void sendWhatsAppTest(alert)}><MessageCircle data-icon="inline-start" />{whatsappAlertFeedback?.state === "sending" ? "Sending…" : whatsappSent ? "WhatsApp accepted" : "Send WhatsApp test"}</Button>}
               {alert.status === "resolved" && <span className="flex items-center gap-1 text-xs font-semibold text-[#187348]"><RotateCcw className="size-3" />Resolved by condition</span>}
             </div>
           </div>;

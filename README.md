@@ -29,7 +29,7 @@ npm run build
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.
 5. On Alerts, an Admin, Engineer or Reviewer can click **Send email** on one alert. The EmailJS template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KeeTrack sends only when you click and has no automatic or bulk send action.
-6. On Alerts, enter the separate trial access key in memory and click **Send WhatsApp test** for one alert. The message is always the fixed system-downtime sample; the selected alert is used only to mark local state.
+6. On Alerts, enter the separate trial access key once and click **Enable on this browser**. KeeTrack keeps a signed 30-day HttpOnly browser session; the raw key is never stored in localStorage or the cookie. Then click **Send WhatsApp test** on one alert. The message is always the fixed system-downtime sample; the selected alert is used only to mark local state.
 7. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
 Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [github.com/Kuroshio-AI/keetrack](https://github.com/Kuroshio-AI/keetrack).
@@ -56,7 +56,7 @@ The provider template is versioned at [`docs/emailjs-template.html`](docs/emailj
 
 ## Trial WhatsApp
 
-The WhatsApp action posts same-origin `alertId` JSON to `/api/alerts/whatsapp`; the browser never chooses the recipient, sender, template, message body or private register details. The server requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_WHATSAPP_TO`, `TWILIO_WHATSAPP_CONTENT_SID` and a strong `WHATSAPP_DEMO_SEND_KEY` of at least 32 characters. Do not hardcode or commit any account, phone, template or access-key value. The access key is entered into a password field and kept in page memory only.
+The WhatsApp action posts same-origin `alertId` JSON to `/api/alerts/whatsapp`; the browser never chooses the recipient, sender, template, message body or private register details. The server requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_WHATSAPP_TO`, `TWILIO_WHATSAPP_CONTENT_SID` and a strong `WHATSAPP_DEMO_SEND_KEY` of at least 32 characters. Do not hardcode or commit any account, phone, template or access-key value. Enter the access key once and use **Enable on this browser**; the server returns a signed 30-day HttpOnly, SameSite=Strict cookie. The raw key is never stored in localStorage or the cookie. **Disconnect** clears this browser session, and rotating the server key invalidates existing sessions.
 
 This specific trial requires reconnecting the WhatsApp recipient in the Twilio console for each console session and supports only predefined template content.
 
