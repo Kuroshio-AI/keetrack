@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Download, FileSpreadsheet, FileText, Import as ImportIcon, RefreshCcw, Upload, XCircle } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ function Stat({ label, value, tone = "normal" }: { label: string; value: number;
 export function ImportView() {
   const { state, update, hydrated, storageWarning } = useApp();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const sampleRequested = searchParams.get("sample") === "1";
   const [preview, setPreview] = useState<ImportPreview | undefined>(() => sampleRequested ? validateRegisterRows(sampleRows(state.demoDate).map(rowToRaw), state.records.map((record) => record.assetRef)) : undefined);
@@ -45,7 +46,12 @@ export function ImportView() {
   function importValid() {
     if (!preview?.validRows.length || state.role === "Manager") return;
     const didSave = update((current) => importRows(current, preview.validRows));
-    if (didSave) { setLastImport({ imported: preview.validRows.length, skipped: preview.duplicates.length, errors: preview.errors.length, issues: [...preview.errors, ...preview.duplicates] }); setPreview(undefined); setError(""); }
+    if (!didSave) return;
+    const issues = [...preview.errors, ...preview.duplicates];
+    setPreview(undefined); setError("");
+    // A clean import lands on the populated Dashboard; stay here when there is an exception report to download.
+    if (!issues.length) { router.push("/dashboard"); return; }
+    setLastImport({ imported: preview.validRows.length, skipped: preview.duplicates.length, errors: preview.errors.length, issues });
   }
 
   const allIssues = preview ? [...preview.errors, ...preview.duplicates] : [];
