@@ -12,6 +12,7 @@ const config: Config = {
         accent: "hsl(var(--accent))",
         danger: "hsl(var(--danger))",
         warning: "hsl(var(--warning))",
+        success: "hsl(var(--success) / <alpha-value>)",
       },
       boxShadow: {
         panel: "0 14px 36px rgba(8, 29, 53, .08)",
