@@ -111,6 +111,7 @@ export type Alert = {
   status: AlertStatus;
   acknowledgedBy?: Role;
   acknowledgedAt?: string;
+  emailSentAt?: string;
 };
 
 export type Activity = {

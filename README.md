@@ -1,6 +1,6 @@
 # KeeTrack demo
 
-KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. No customer data, external database, email, WhatsApp or messaging integration is used.
+KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS is available only for an explicitly requested single-alert email; there is no database, WhatsApp or background messaging integration.
 
 ## Setup
 
@@ -12,7 +12,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` to the browser.
+The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` to the browser. To enable the manual alert action, set `NEXT_PUBLIC_EMAILJS_SERVICE_ID`, `NEXT_PUBLIC_EMAILJS_TEMPLATE_ID` and `NEXT_PUBLIC_EMAILJS_PUBLIC_KEY`; leave them unset to keep email sending disabled.
 
 Run the focused checks with:
 
@@ -28,7 +28,8 @@ npm run build
 2. Review the six valid rows and click **Import valid rows**. Open Dashboard to see the 30-day, 7-day, today and overdue queues.
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.
-5. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
+5. On Alerts, an Admin, Engineer or Reviewer can click **Send email** on one alert. The EmailJS template has the fixed `devops@kuroshioai.com` recipient; KeeTrack sends only when you click and has no automatic or bulk send action.
+6. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
 Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [github.com/Kuroshio-AI/keetrack](https://github.com/Kuroshio-AI/keetrack).
 
@@ -44,4 +45,10 @@ Inspection evidence is optional fictional demo data. Only image MIME types are a
 
 Creating a QR calls `POST /api/certificates/demo-token` with a small allowlisted certificate snapshot. The API signs it with an HMAC secret and returns a verification URL. `/verify?token=...` displays the captured status, dates and `asOf` timestamp; it is not a live certificate lookup. Old tokens remain valid until their own expiry even if a certificate is later revoked or superseded. QR generation can be retried without changing the approved certificate.
 
-Future integrations such as a database, outbound notifications, customer identity and real certification evidence are intentionally outside this demo.
+Future integrations such as a database, automated outbound delivery, customer identity and real certification evidence are intentionally outside this demo.
+
+## Manual alert email
+
+EmailJS uses the browser REST endpoint only after a user clicks **Send email** on an individual alert. The template recipient is fixed to `devops@kuroshioai.com`; KeeTrack sends only the alert event, asset reference/type, site, owner, severity, due date, demo date, status and occurrence timestamp. Notes, inspection evidence and contact lists are never included. The shared EmailJS account and mailbox quota are a demo dependency, so configure the three public values in `.env.local`, do not commit account values, and expect no scheduled or background delivery. A provider acceptance is recorded in localStorage; network failures remain unconfirmed and require a deliberate manual retry.
+
+The provider template is versioned at [`docs/emailjs-template.html`](docs/emailjs-template.html). Keep its settings as follows: subject `[KeeTrack Demo] {{event}} — {{asset_ref}}`, fixed To and Reply-To `devops@kuroshioai.com`, From Name `KeeTrack Demo`, the default EmailJS sender, blank CC/BCC, and no auto-reply. Keep the template body limited to the allowlisted fields above.
