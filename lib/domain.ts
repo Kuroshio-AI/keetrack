@@ -273,6 +273,11 @@ function recordDeadlines(record: AssetRecord, demoDate: string): Deadline[] {
   return deadlines;
 }
 
+// The most urgent obligation on a record, using the same dates as the alert tiers.
+export function nextDeadline(record: AssetRecord, demoDate: string): (Deadline & { days: number }) | undefined {
+  return recordDeadlines(record, demoDate).map((deadline) => ({ ...deadline, days: dateDiffDays(deadline.date, demoDate) })).sort((a, b) => a.days - b.days)[0];
+}
+
 export function recalculateAlerts(state: AppState, timestamp = nowIso()): AppState {
   const next = state.alerts.map((alert) => ({ ...alert }));
   const currentKeys = new Set<string>();
@@ -328,15 +333,21 @@ export function getRecord(state: AppState, assetId: string): AssetRecord | undef
 const DEFAULT_CHECKLIST = ["Identity and markings legible", "Components free from visible damage", "Fixings and anchor points secure", "Storage and use conditions acceptable"];
 
 export function createInspection(state: AppState, assetId: string, actor = state.role, timestamp = nowIso()): { state: AppState; inspection: Inspection } {
-  if (getRecord(state, assetId)?.status !== "Active") throw new Error("Choose an active record to inspect.");
+  const record = getRecord(state, assetId);
+  if (record?.status !== "Active") throw new Error("Choose an active record to inspect.");
   const checklist: ChecklistItem[] = DEFAULT_CHECKLIST.map((label, index) => ({ id: `check-${index + 1}`, label, result: "pending" }));
-  const inspection: Inspection = { id: makeId("inspection"), assetId, inspector: actor, checklist, notes: "", status: "Draft", createdAt: timestamp, updatedAt: timestamp };
+  const inspection: Inspection = { id: makeId("inspection"), assetId, inspector: record.assignedEngineer || actor, checklist, notes: "", status: "Draft", createdAt: timestamp, updatedAt: timestamp };
   return { state: { ...state, inspections: [inspection, ...state.inspections] }, inspection };
 }
 
 export function updateInspection(state: AppState, id: string, patch: Partial<Pick<Inspection, "checklist" | "notes" | "photos">>, timestamp = nowIso()): AppState {
   if (patch.photos && (patch.photos.some((photo) => photo.bytes > 200 * 1024) || patch.photos.reduce((total, photo) => total + photo.bytes, 0) > 1024 * 1024)) throw new Error("Evidence exceeds the local photo limit.");
   return { ...state, inspections: state.inspections.map((item) => item.id === id && (item.status === "Draft" || item.status === "Returned") ? { ...item, ...patch, updatedAt: timestamp } : item) };
+}
+
+// Only never-submitted drafts can go; anything reviewed stays in the audit trail.
+export function deleteInspection(state: AppState, id: string): AppState {
+  return { ...state, inspections: state.inspections.filter((item) => item.id !== id || item.status !== "Draft") };
 }
 
 export function submitInspection(state: AppState, id: string, timestamp = nowIso()): AppState {

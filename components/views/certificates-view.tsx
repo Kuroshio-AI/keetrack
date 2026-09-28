@@ -49,6 +49,7 @@ export function CertificatesView() {
   }
 
   function changeStatus(record: AssetRecord, certificate: Certificate, status: "Revoked" | "Superseded") {
+    if (!window.confirm(`${status === "Revoked" ? "Revoke" : "Supersede"} ${certificate.number} for ${record.assetRef}? This cannot be undone.`)) return;
     if (update((current) => changeCertificateStatus(current, record.id, certificate.id, status))) void makeQr(record, { ...certificate, status });
   }
 

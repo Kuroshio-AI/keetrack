@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acknowledgeAlert, addMonthsClamped, approveInspection, changeCertificateStatus, createInitialState, createInspection, dateDiffDays, importRows, recalculateAlerts, returnInspection, rowToRecord, submitInspection, updateInspection } from "./domain";
+import { acknowledgeAlert, addMonthsClamped, approveInspection, changeCertificateStatus, createInitialState, createInspection, dateDiffDays, deleteInspection, importRows, nextDeadline, recalculateAlerts, returnInspection, rowToRecord, submitInspection, updateInspection } from "./domain";
 import { commitState, loadState } from "./storage";
 import type { AppState } from "./types";
 
@@ -86,4 +86,22 @@ test("issued evidence is immutable, and expired/revoked certificates retain aler
   assert.ok(!state.alerts.some((alert) => alert.event === "Certificate expiry" && alert.status === "open"));
   assert.equal(state.alerts.filter((alert) => alert.event === "Certificate revoked").length, 1);
   assert.equal(changeCertificateStatus(state, state.records[0].id, certificate.id, "Revoked"), state);
+});
+
+test("drafts can be deleted, submitted work cannot, and the assigned engineer inspects", () => {
+  const base = stateWithRecord();
+  const state = { ...base, records: [{ ...base.records[0], assignedEngineer: "Leo Hart" }] };
+  const draft = createInspection(state, state.records[0].id, "Admin");
+  assert.equal(draft.inspection.inspector, "Leo Hart");
+  assert.equal(deleteInspection(draft.state, draft.inspection.id).inspections.length, 0);
+  const passed = draft.inspection.checklist.map((item) => ({ ...item, result: "pass" as const }));
+  const submitted = submitInspection(updateInspection(draft.state, draft.inspection.id, { checklist: passed }), draft.inspection.id);
+  assert.equal(deleteInspection(submitted, draft.inspection.id).inspections.length, 1);
+});
+
+test("nextDeadline returns the most urgent obligation", () => {
+  const state = stateWithRecord("2026-02-12");
+  const deadline = nextDeadline(state.records[0], state.demoDate);
+  assert.equal(deadline?.key, "inspection");
+  assert.equal(deadline?.days, -3);
 });
