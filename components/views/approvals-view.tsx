@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { addMonthsClamped, approveInspection, returnInspection } from "@/lib/domain";
+import { formatDate } from "@/lib/utils";
 
 export function ApprovalsView() {
   const { state, update } = useApp();
@@ -52,11 +53,11 @@ export function ApprovalsView() {
         <div aria-hidden="true" className="stamp flex shrink-0 flex-col items-center self-start rounded-lg border-2 border-success px-4 py-2 text-success outline outline-1 outline-offset-[3px] outline-success/40">
           <span className="text-[9px] font-bold uppercase tracking-[.22em] opacity-80">Quality gate</span>
           <span className="text-xl font-black uppercase leading-tight tracking-[.16em]">Issued</span>
-          <span className="font-mono text-[10px] font-semibold">{issuedCertificate.issuedDate}</span>
+          <span className="font-mono text-[10px] font-semibold">{formatDate(issuedCertificate.issuedDate)}</span>
         </div>
       </div>
       <CardContent className="flex flex-col gap-5 p-5 sm:px-7">
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">{[["Result", issuedCertificate.result], ["Expires", issuedCertificate.expiryDate], ["Next inspection", issued?.nextInspectionDate ?? "Not scheduled"]].map(([label, value]) => <div key={label}><dt className="eyebrow">{label}</dt><dd className="mt-1 font-mono text-sm font-semibold text-navy">{value}</dd></div>)}</dl>
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">{[["Result", issuedCertificate.result], ["Expires", formatDate(issuedCertificate.expiryDate)], ["Next inspection", issued?.nextInspectionDate ? formatDate(issued.nextInspectionDate) : "Not scheduled"]].map(([label, value]) => <div key={label}><dt className="eyebrow">{label}</dt><dd className="mt-1 font-mono text-sm font-semibold text-navy">{value}</dd></div>)}</dl>
         <p className="text-xs text-slate-500">The register, alerts and activity log are updated. Print it or create its QR from Certificates.</p>
         <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">{queue.length > 0 && <Button variant="outline" onClick={() => select()}>Review next · {queue.length} waiting</Button>}<Button asChild><Link href="/certificates">Open certificates<ArrowRight data-icon="inline-end" /></Link></Button></div>
       </CardContent>

@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { acknowledgeAlert } from "@/lib/domain";
 import { EMAIL_RECIPIENT, getEmailJsConfig, sendAlertEmail } from "@/lib/email";
 import type { Alert } from "@/lib/types";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 type EmailFeedback = {
   state: "sending" | "sent" | "error";
@@ -148,8 +149,8 @@ export function AlertsView() {
                   <Badge variant="outline">{alert.severity}</Badge>
                   {alert.tier && <Badge variant={alert.tier === "overdue" ? "danger" : alert.tier === "due30" ? "secondary" : "warning"}>{tierLabel(alert.tier)}</Badge>}
                 </div>
-                <div className="mt-1 text-xs text-slate-500">{alert.assetRef ?? "System"}{alert.owner ? ` · ${alert.owner}` : ""}{alert.dueDate ? ` · due ${alert.dueDate}` : ""}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-[.08em] text-slate-400">{alert.timestamp.slice(0, 16).replace("T", " ")}{alert.acknowledgedBy ? ` · acknowledged by ${alert.acknowledgedBy} at ${alert.acknowledgedAt?.slice(0, 16).replace("T", " ")}` : ""}</div>
+                <div className="mt-1 text-xs text-slate-500">{alert.assetRef ?? "System"}{alert.owner ? ` · ${alert.owner}` : ""}{alert.dueDate ? ` · due ${formatDate(alert.dueDate)}` : ""}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-[.08em] text-slate-400">{formatDateTime(alert.timestamp)}{alert.acknowledgedBy && alert.acknowledgedAt ? ` · acknowledged by ${alert.acknowledgedBy} at ${formatDateTime(alert.acknowledgedAt)}` : ""}</div>
                 {feedback && <div className={`mt-2 text-xs ${feedback.state === "error" ? "text-danger" : feedback.state === "sent" ? "text-[#187348]" : "text-slate-500"}`} role={feedback.state === "error" ? "alert" : "status"} aria-live="polite">{feedback.message}</div>}
               </div>
             </div>

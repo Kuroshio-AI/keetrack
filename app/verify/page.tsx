@@ -1,9 +1,41 @@
+import { ShieldAlert, ShieldCheck, ShieldMinus, ShieldX } from "lucide-react";
 import { verifyDemoToken } from "@/lib/tokens";
+import type { CertificateStatus } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+const STATUS = {
+  Valid: { icon: ShieldCheck, badge: "bg-success", band: "bg-success/[.07]", title: "Valid certificate", detail: "This certificate is current." },
+  Expired: { icon: ShieldAlert, badge: "bg-warning", band: "bg-[#fff8e8]", title: "Certificate expired", detail: "This certificate is past its expiry date. Do not rely on it." },
+  Revoked: { icon: ShieldX, badge: "bg-danger", band: "bg-[#fff5f5]", title: "Certificate revoked", detail: "This certificate has been withdrawn. Do not rely on it." },
+  Superseded: { icon: ShieldMinus, badge: "bg-warning", band: "bg-[#fff8e8]", title: "Certificate superseded", detail: "A newer certificate replaces this one." },
+} satisfies Record<CertificateStatus, unknown>;
 
 export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ token?: string | string[] }> }) {
   const { token } = await searchParams;
   const result = typeof token === "string" ? verifyDemoToken(token, process.env.DEMO_CERT_TOKEN_SECRET ?? "") : { ok: false as const, error: "No token supplied" };
-  return <main className="min-h-screen bg-[#f3f7f9] px-5 py-14"><div className="mx-auto max-w-xl rounded-2xl border border-[#d4e1e8] bg-white p-7 shadow-panel sm:p-10"><div className="text-xs font-bold uppercase tracking-[.18em] text-[#1684ab]">Kee Safety · KeeTrack</div><h1 className="mt-5 text-3xl font-black tracking-[-.05em] text-[#0b3151]">Demo certificate verification</h1>{result.ok ? <><div className={`mt-7 rounded-xl border p-5 ${result.snapshot.status === "Valid" ? "border-[#bde1ca] bg-[#effaf3]" : "border-[#f0c2c3] bg-[#fff5f5]"}`}><div className="text-xs font-bold uppercase tracking-[.14em] text-[#0b3151]">{result.snapshot.status}</div><div className="mt-2 text-2xl font-bold text-[#0b3151]">{result.snapshot.certificateNo}</div><p className="mt-2 text-sm text-slate-600">{result.snapshot.assetRef} · {result.snapshot.assetType}</p></div><dl className="mt-7 grid gap-4 sm:grid-cols-2"><div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Issued</dt><dd className="mt-1 font-semibold text-[#0b3151]">{result.snapshot.issuedDate}</dd></div><div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Expires</dt><dd className="mt-1 font-semibold text-[#0b3151]">{result.snapshot.expiryDate}</dd></div></dl><p className="mt-8 border-t border-[#e1e9ee] pt-4 text-xs leading-relaxed text-slate-500">Demo certificate / status as of {result.snapshot.asOf}. This page displays an immutable signed snapshot and is not live certification.</p></> : <div className="mt-7 rounded-xl border border-[#f0c2c3] bg-[#fff5f5] p-5 text-sm text-[#a52e35]">{result.error}</div>}</div></main>;
+  const tone = result.ok ? STATUS[result.snapshot.status] : { icon: ShieldX, badge: "bg-danger", band: "bg-[#fff5f5]", title: "Cannot verify", detail: result.error };
+  const Icon = tone.icon;
+  return <main className="min-h-screen bg-[#f3f7f9] px-4 py-10 sm:py-14">
+    <div className="animate-rise mx-auto max-w-md overflow-hidden rounded-2xl border border-[#d4e1e8] bg-white shadow-panel">
+      <div className={`px-6 pb-8 pt-7 text-center ${tone.band}`}>
+        <div className="text-[11px] font-bold uppercase tracking-[.18em] text-[#1684ab]">Kee Safety · KeeTrack</div>
+        <span className={`pop-in mx-auto mt-7 grid size-24 place-items-center rounded-full text-white shadow-lg ring-8 ring-white ${tone.badge}`}><Icon className="size-12" aria-hidden="true" /></span>
+        <h1 className="mt-5 text-3xl font-bold tracking-[-.03em] text-[#0b3151]">{tone.title}</h1>
+        <p className="mt-2 text-sm text-slate-600">{tone.detail}</p>
+      </div>
+      {result.ok && <div className="px-6 py-6">
+        <div className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Certificate number</div>
+        <div className="mt-1 break-all font-mono text-xl font-bold text-[#0b3151]">{result.snapshot.certificateNo}</div>
+        <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-[#e1e9ee] pt-5">
+          <div className="col-span-2"><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Asset</dt><dd className="mt-1 font-semibold text-[#0b3151]">{result.snapshot.assetRef} · {result.snapshot.assetType}</dd></div>
+          <div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Issued</dt><dd className="mt-1 font-semibold text-[#0b3151]">{formatDate(result.snapshot.issuedDate)}</dd></div>
+          <div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Expires</dt><dd className="mt-1 font-semibold text-[#0b3151]">{formatDate(result.snapshot.expiryDate)}</dd></div>
+        </dl>
+        {/* Rendered on the server, so the snapshot time is stated in UTC rather than guessing the viewer's zone. */}
+        <p className="mt-6 border-t border-[#e1e9ee] pt-4 text-xs leading-relaxed text-slate-500">Demo certificate · status as of {formatDate(result.snapshot.asOf.slice(0, 10))}, {result.snapshot.asOf.slice(11, 16)} UTC. This is a signed snapshot, not live certification.</p>
+      </div>}
+    </div>
+  </main>;
 }

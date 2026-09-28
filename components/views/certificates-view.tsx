@@ -10,12 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { changeCertificateStatus, effectiveCertificateStatus } from "@/lib/domain";
 import type { AssetRecord, Certificate } from "@/lib/types";
+import { formatDate, formatLocalDate } from "@/lib/utils";
 
 function snapshot(record: AssetRecord, certificate: Certificate, demoDate: string) {
   return { certificateNo: certificate.number, assetRef: record.assetRef, assetType: record.assetType, issuedDate: certificate.issuedDate, expiryDate: certificate.expiryDate, status: effectiveCertificateStatus(certificate, demoDate) };
 }
 type QrSnapshot = { image: string; url: string; key: string; createdAt: number };
-type PrintSnapshot = ReturnType<typeof snapshot> & { result: string; qr: string };
+type PrintSnapshot = ReturnType<typeof snapshot> & { result: string; qr: string; site: string; serialNo?: string; inspector?: string; inspectedAt?: string; approvedAt?: string; nextInspection?: string };
+
+function Signature({ label, name, date }: { label: string; name: string; date?: string }) {
+  return <div><div className="h-12 border-b border-[#0b3151]/40" /><div className="mt-2 text-sm font-semibold text-navy">{name}</div><div className="text-xs text-slate-500">{label}{date ? ` · ${formatLocalDate(date)}` : ""}</div></div>;
+}
 
 export function CertificatesView() {
   const { state, update } = useApp();
@@ -55,7 +60,8 @@ export function CertificatesView() {
 
   async function print(record: AssetRecord, certificate: Certificate) {
     const fresh = await makeQr(record, certificate);
-    if (fresh) setPrinting({ ...snapshot(record, certificate, state.demoDate), result: certificate.result, qr: fresh.image });
+    const inspection = state.inspections.find((item) => item.id === certificate.sourceInspectionId);
+    if (fresh) setPrinting({ ...snapshot(record, certificate, state.demoDate), result: certificate.result, qr: fresh.image, site: record.site, serialNo: record.serialNo, inspector: inspection?.inspector, inspectedAt: inspection?.submittedAt, approvedAt: inspection?.reviewedAt, nextInspection: inspection?.nextInspectionDate ?? record.inspectionDueDate });
   }
 
   return <div className="flex flex-col gap-5">
@@ -66,7 +72,7 @@ export function CertificatesView() {
         const currentQr = cached?.key === JSON.stringify(details) && Date.now() - cached.createdAt < 24 * 60 * 60 * 1000 ? cached : undefined;
         return <div key={certificate.id} className="min-w-0 rounded-xl border border-line bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="eyebrow">{record.assetRef} · {record.site}</div><h3 className="mt-1 break-all text-lg font-bold text-navy">{certificate.number}</h3><p className="mt-1 text-sm text-slate-500">{record.assetType}</p></div><Badge variant={details.status === "Valid" ? "success" : details.status === "Expired" ? "warning" : "danger"}>{details.status}</Badge></div>
-          <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-paper p-3 text-sm"><div><div className="eyebrow">Issued</div><div className="mt-1 font-semibold text-navy">{certificate.issuedDate}</div></div><div><div className="eyebrow">Expires</div><div className="mt-1 font-semibold text-navy">{certificate.expiryDate}</div></div></div>
+          <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-paper p-3 text-sm"><div><div className="eyebrow">Issued</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.issuedDate)}</div></div><div><div className="eyebrow">Expires</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.expiryDate)}</div></div></div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void print(record, certificate)}><Printer />Print</Button>
             <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => void makeQr(record, certificate)}><QrCode />{busy === certificate.id ? "Generating…" : currentQr ? "Refresh QR" : "Create QR"}</Button>
@@ -86,8 +92,15 @@ export function CertificatesView() {
       <div className="print-hidden mb-5 flex justify-end gap-2"><Button onClick={() => window.print()}>Print / Save PDF</Button><Button variant="outline" onClick={() => dialog.current?.close()}>Close</Button></div>
       <div className="mx-auto border-[8px] border-[#0b3151] p-1"><div className="border border-[#b8cedc] p-5 sm:p-10">
         <div className="flex items-start justify-between gap-4"><div><div className="text-xs font-bold uppercase tracking-[.2em] text-accent">Kee Safety · KeeTrack</div><h2 className="mt-5 text-3xl font-black tracking-tight text-navy">Certificate of inspection</h2></div><Badge variant="warning">DEMO</Badge></div>
-        <dl className="mt-8 grid gap-5 sm:grid-cols-2"><div><dt className="eyebrow">Certificate number</dt><dd className="mt-1 break-all text-lg font-bold text-navy">{printing.certificateNo}</dd></div><div><dt className="eyebrow">Result / status</dt><dd className="mt-1 font-bold text-navy">{printing.result} · {printing.status}</dd></div><div><dt className="eyebrow">Asset</dt><dd className="mt-1 font-semibold text-navy">{printing.assetRef}<span className="block text-sm font-normal">{printing.assetType}</span></dd></div><div><dt className="eyebrow">Validity</dt><dd className="mt-1 font-semibold text-navy">{printing.issuedDate} → {printing.expiryDate}</dd></div></dl>
-        <img src={printing.qr} alt="Certificate verification QR" className="mt-5 size-48" />
+        <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
+          <div className="col-span-2"><dt className="eyebrow">Certificate number</dt><dd className="mt-1 break-all text-lg font-bold text-navy">{printing.certificateNo}</dd></div>
+          <div><dt className="eyebrow">Result / status</dt><dd className="mt-1 text-lg font-bold text-navy">{printing.result} · {printing.status}</dd></div>
+          {[["Asset", `${printing.assetRef} · ${printing.assetType}`], ["Serial number", printing.serialNo ?? "Not supplied"], ["Site", printing.site], ["Issued", formatDate(printing.issuedDate)], ["Expires", formatDate(printing.expiryDate)], ["Next inspection due", printing.nextInspection ? formatDate(printing.nextInspection) : "Not scheduled"]].map(([label, value]) => <div key={label}><dt className="eyebrow">{label}</dt><dd className="mt-1 font-semibold text-navy">{value}</dd></div>)}
+        </dl>
+        <div className="mt-8 flex flex-col gap-8 border-t border-line pt-6 sm:flex-row sm:items-end">
+          <div className="shrink-0 text-center"><img src={printing.qr} alt="Certificate verification QR" className="mx-auto size-36" /><div className="eyebrow mt-1">Scan to verify</div></div>
+          <div className="grid flex-1 gap-8 sm:grid-cols-2"><Signature label="Inspected by" name={printing.inspector ?? "Not recorded"} date={printing.inspectedAt} /><Signature label="Approved by" name="Authorised reviewer" date={printing.approvedAt} /></div>
+        </div>
         <p className="mt-6 border-t border-line pt-4 text-xs leading-relaxed text-slate-500">Demo certificate · fictional data. QR verification is a signed snapshot valid for 24 hours; it is not live certification.</p>
       </div></div>
     </dialog>, document.body)}
