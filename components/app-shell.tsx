@@ -102,7 +102,7 @@ function AppFrame({ initialView }: { initialView: string }) {
         <span className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#80a9c2]">Sandbox</span>
         <Link href="/demo-controls" onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold ${view === "demo-controls" ? "bg-white text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}><Settings2 className="size-[17px]" /><span>Demo Controls</span></Link>
       </nav>
-      <div className="border-t border-[#2a5774] px-2 pt-4 text-[11px] leading-relaxed text-[#9cbed2]"><div className="flex items-center gap-2"><Activity className="size-3" />EmailJS only when requested</div><div className="mt-1">v1.0 · fictional demo data</div></div>
+      <div className="border-t border-[#2a5774] px-2 pt-4 text-[11px] leading-relaxed text-[#9cbed2]"><div className="flex items-center gap-2"><Activity className="size-3" />Manual notifications only</div><div className="mt-1">v1.0 · fictional demo data</div></div>
     </aside>
     {mobileOpen && <button className="fixed inset-0 z-30 bg-[#071d30]/50 lg:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
     <main inert={isMobile && mobileOpen ? true : undefined} className="min-w-0 flex-1">

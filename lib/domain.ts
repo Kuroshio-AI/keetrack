@@ -108,7 +108,8 @@ export function validateStoredState(value: unknown): value is AppState {
     return isText(alert.id) && isText(alert.occurrenceKey) && ["deadline", "review", "certificate", "system"].includes(alert.type as string)
       && isText(alert.event) && isTimestamp(alert.timestamp) && ["info", "warning", "critical"].includes(alert.severity as string) && ["open", "resolved", "history"].includes(alert.status as string)
       && isOptionalDate(alert.dueDate) && (alert.acknowledgedAt === undefined || isTimestamp(alert.acknowledgedAt))
-      && (alert.emailSentAt === undefined || isTimestamp(alert.emailSentAt));
+      && (alert.emailSentAt === undefined || isTimestamp(alert.emailSentAt))
+      && (alert.whatsappSentAt === undefined || isTimestamp(alert.whatsappSentAt));
   };
   return candidate.version === STORAGE_VERSION
     && isDateString(candidate.demoDate)

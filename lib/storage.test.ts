@@ -24,3 +24,41 @@ test("storage rejects malformed nested records instead of loading them", () => {
   const result = loadState({ getItem: () => JSON.stringify(malformed) }, "2026-01-01");
   assert.equal(result.recovered, true);
 });
+
+test("storage rejects malformed alert email timestamps", () => {
+  const state = createInitialState("2026-01-01");
+  const malformed = {
+    ...state,
+    alerts: [{
+      id: "alert-1",
+      occurrenceKey: "system:1",
+      type: "system" as const,
+      event: "System notice",
+      timestamp: "2026-01-01T00:00:00.000Z",
+      severity: "info" as const,
+      status: "history" as const,
+      emailSentAt: "not-a-timestamp",
+    }],
+  };
+  const result = loadState({ getItem: () => JSON.stringify(malformed) }, "2026-01-01");
+  assert.equal(result.recovered, true);
+});
+
+test("storage rejects malformed alert WhatsApp timestamps", () => {
+  const state = createInitialState("2026-01-01");
+  const malformed = {
+    ...state,
+    alerts: [{
+      id: "alert-1",
+      occurrenceKey: "system:1",
+      type: "system" as const,
+      event: "System notice",
+      timestamp: "2026-01-01T00:00:00.000Z",
+      severity: "info" as const,
+      status: "history" as const,
+      whatsappSentAt: "not-a-timestamp",
+    }],
+  };
+  const result = loadState({ getItem: () => JSON.stringify(malformed) }, "2026-01-01");
+  assert.equal(result.recovered, true);
+});

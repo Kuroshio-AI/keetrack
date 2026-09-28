@@ -1,6 +1,6 @@
 # KeeTrack demo
 
-KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS is available only for an explicitly requested single-alert email; there is no database, WhatsApp or background messaging integration.
+KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS and a guarded Twilio WhatsApp trial are available only for explicitly requested single-alert actions; there is no database or background messaging integration.
 
 ## Setup
 
@@ -12,7 +12,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` to the browser. To enable the manual alert action, set `NEXT_PUBLIC_EMAILJS_SERVICE_ID`, `NEXT_PUBLIC_EMAILJS_TEMPLATE_ID` and `NEXT_PUBLIC_EMAILJS_PUBLIC_KEY`; leave them unset to keep email sending disabled.
+The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` or the Twilio variables to the browser. EmailJS uses the three `NEXT_PUBLIC_EMAILJS_*` values; the WhatsApp trial requires all six `TWILIO_*`/`WHATSAPP_DEMO_SEND_KEY` values in the server environment. Leave either set of values unset to keep that channel disabled.
 
 Run the focused checks with:
 
@@ -29,7 +29,8 @@ npm run build
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.
 5. On Alerts, an Admin, Engineer or Reviewer can click **Send email** on one alert. The EmailJS template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KeeTrack sends only when you click and has no automatic or bulk send action.
-6. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
+6. On Alerts, enter the separate trial access key in memory and click **Send WhatsApp test** for one alert. The message is always the fixed system-downtime sample; the selected alert is used only to mark local state.
+7. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
 Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [github.com/Kuroshio-AI/keetrack](https://github.com/Kuroshio-AI/keetrack).
 
@@ -52,3 +53,11 @@ Future integrations such as a database, automated outbound delivery, customer id
 EmailJS uses the browser REST endpoint only after a user clicks **Send email** on an individual alert. The template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KeeTrack sends only the alert event, asset reference/type, site, owner, severity, due date, demo date, status and occurrence timestamp. Notes, inspection evidence and contact lists are never included. The shared EmailJS account and mailbox quota are a demo dependency, so configure the three public values in `.env.local`, do not commit account values, and expect no scheduled or background delivery. A provider acceptance is recorded in localStorage; network failures remain unconfirmed and require a deliberate manual retry.
 
 The provider template is versioned at [`docs/emailjs-template.html`](docs/emailjs-template.html). Keep its settings as follows: subject `[KeeTrack Demo] {{event}} — {{asset_ref}}`, fixed To and Reply-To `devops@kuroshioai.com`, fixed CC `noufal@kuroshioai.com`, From Name `KeeTrack Demo`, the default EmailJS sender, blank BCC, and no auto-reply. Keep the template body limited to the allowlisted fields above.
+
+## Trial WhatsApp
+
+The WhatsApp action posts same-origin `alertId` JSON to `/api/alerts/whatsapp`; the browser never chooses the recipient, sender, template, message body or private register details. The server requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_WHATSAPP_TO`, `TWILIO_WHATSAPP_CONTENT_SID` and a strong `WHATSAPP_DEMO_SEND_KEY` of at least 32 characters. Do not hardcode or commit any account, phone, template or access-key value. The access key is entered into a password field and kept in page memory only.
+
+This specific trial requires reconnecting the WhatsApp recipient in the Twilio console for each console session and supports only predefined template content.
+
+Every trial send uses this generic fictional sample: `Alert: System downtime detected. Engineers notified. ETA to resolution: 2 hours. Reply STATUS for updates. Test message from Twilio.` A successful Twilio acceptance is not delivery confirmation. Network, timeout and malformed-provider responses say to check Twilio before retrying; the action never retries automatically. Accepted and ambiguous results are held in a bounded warm-instance replay cache for 10 minutes, with a three-second per-instance cooldown and a maximum of 500 alert keys. Cold starts or multiple server instances can reset or bypass those in-memory protections, so the demo key remains the real boundary. There are no scheduled, background or bulk sends.

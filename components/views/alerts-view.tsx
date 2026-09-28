@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { BellRing, Check, Filter, History, Mail, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BellRing, Check, Filter, History, Mail, MessageCircle, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,13 @@ type EmailFeedback = {
   message: string;
 };
 
+type WhatsAppConfigState = {
+  phase: "loading" | "ready" | "error";
+  configured: boolean;
+  recipientLabel?: string;
+  message?: string;
+};
+
 export function AlertsView() {
   const { state, update, storageWarning } = useApp();
   const [status, setStatus] = useState("open");
@@ -27,10 +34,34 @@ export function AlertsView() {
   const [asset, setAsset] = useState("");
   const [emailFeedback, setEmailFeedback] = useState<Record<string, EmailFeedback>>({});
   const [localAccepted, setLocalAccepted] = useState<Record<string, string>>({});
+  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppConfigState>({ phase: "loading", configured: false });
+  const [whatsappAccessKey, setWhatsappAccessKey] = useState("");
+  const [whatsappFeedback, setWhatsappFeedback] = useState<Record<string, EmailFeedback>>({});
+  const [whatsappLocalAccepted, setWhatsappLocalAccepted] = useState<Record<string, string>>({});
   const lastEmailRequestAt = useRef(0);
   const emailInFlight = useRef(false);
+  const lastWhatsAppRequestAt = useRef(0);
+  const whatsappInFlight = useRef(false);
   const emailConfigured = Boolean(getEmailJsConfig());
   const isEmailSending = Object.values(emailFeedback).some((feedback) => feedback.state === "sending");
+  const isWhatsAppSending = Object.values(whatsappFeedback).some((feedback) => feedback.state === "sending");
+  const whatsappConfigured = whatsappStatus.phase === "ready" && whatsappStatus.configured;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let ignore = false;
+    fetch("/api/alerts/whatsapp", { cache: "no-store", headers: { Accept: "application/json" }, signal: controller.signal })
+      .then(async (response) => {
+        const body: unknown = await response.json().catch(() => undefined);
+        if (!response.ok || !body || typeof body !== "object") throw new Error("Trial messaging configuration is unavailable.");
+        const candidate = body as Record<string, unknown>;
+        if (!ignore) setWhatsappStatus({ phase: "ready", configured: candidate.configured === true, recipientLabel: typeof candidate.recipientLabel === "string" ? candidate.recipientLabel : undefined });
+      })
+      .catch((reason) => {
+        if (!ignore && !(reason instanceof DOMException && reason.name === "AbortError")) setWhatsappStatus({ phase: "error", configured: false, message: "Trial messaging configuration is unavailable." });
+      });
+    return () => { ignore = true; controller.abort(); };
+  }, []);
   const visible = useMemo(() => state.alerts
     .filter((alert) => (status === "all" || (status === "acknowledged" ? alert.status === "open" && Boolean(alert.acknowledgedAt) : alert.status === status))
       && (type === "all" || alert.type === type)
@@ -45,6 +76,10 @@ export function AlertsView() {
 
   function setFeedback(alertId: string, feedback: EmailFeedback) {
     setEmailFeedback((current) => ({ ...current, [alertId]: feedback }));
+  }
+
+  function setWhatsAppFeedback(alertId: string, feedback: EmailFeedback) {
+    setWhatsappFeedback((current) => ({ ...current, [alertId]: feedback }));
   }
 
   async function sendEmail(alert: Alert) {
@@ -93,6 +128,65 @@ export function AlertsView() {
     }
   }
 
+  async function sendWhatsAppTest(alert: Alert) {
+    const existingFeedback = whatsappFeedback[alert.id];
+    if (existingFeedback?.state === "sending" || alert.whatsappSentAt || whatsappLocalAccepted[alert.id]) return;
+    if (whatsappInFlight.current) {
+      setWhatsAppFeedback(alert.id, { state: "error", message: "Another WhatsApp trial request is sending. Wait for its result before trying again." });
+      return;
+    }
+    if (!whatsappConfigured || !whatsappAccessKey.trim()) {
+      setWhatsAppFeedback(alert.id, { state: "error", message: "Enter the demo access key after trial messaging is configured." });
+      return;
+    }
+    if (storageWarning) {
+      setWhatsAppFeedback(alert.id, { state: "error", message: "Storage recovery is required before a send can be recorded. No request was sent." });
+      return;
+    }
+    const now = Date.now();
+    if (now - lastWhatsAppRequestAt.current < 3_000) {
+      setWhatsAppFeedback(alert.id, { state: "error", message: "Please wait before sending another WhatsApp trial message." });
+      return;
+    }
+    lastWhatsAppRequestAt.current = now;
+    whatsappInFlight.current = true;
+    setWhatsAppFeedback(alert.id, { state: "sending", message: "Sending fixed WhatsApp trial message…" });
+    try {
+      let response: Response;
+      try {
+        response = await fetch("/api/alerts/whatsapp", {
+          method: "POST",
+          cache: "no-store",
+          headers: { Accept: "application/json", "Content-Type": "application/json", "x-keetrack-demo-key": whatsappAccessKey.trim() },
+          body: JSON.stringify({ alertId: alert.id }),
+        });
+      } catch {
+        throw new Error("WhatsApp status is unconfirmed. Check Twilio before retrying.");
+      }
+      const body: unknown = await response.json().catch(() => undefined);
+      if (!response.ok || !body || typeof body !== "object" || (body as Record<string, unknown>).accepted !== true) {
+        const message = body && typeof body === "object" && typeof (body as Record<string, unknown>).error === "string" ? (body as Record<string, string>).error : "WhatsApp status is unconfirmed. Check Twilio before retrying.";
+        throw new Error(message);
+      }
+      const acceptedAt = new Date().toISOString();
+      const didPersist = update((current) => {
+        if (!current.alerts.some((item) => item.id === alert.id)) return current;
+        return { ...current, alerts: current.alerts.map((item) => item.id === alert.id ? { ...item, whatsappSentAt: acceptedAt } : item) };
+      });
+      setWhatsappLocalAccepted((current) => ({ ...current, [alert.id]: acceptedAt }));
+      setWhatsAppFeedback(alert.id, {
+        state: "sent",
+        message: didPersist
+          ? "WhatsApp request accepted by Twilio; delivery is not confirmed. Acceptance saved in this browser."
+          : "WhatsApp request accepted by Twilio; delivery is not confirmed. Acceptance could not be saved, so do not retry in this browser.",
+      });
+    } catch (reason) {
+      setWhatsAppFeedback(alert.id, { state: "error", message: reason instanceof Error ? reason.message : "WhatsApp status is unconfirmed. Check Twilio before retrying." });
+    } finally {
+      whatsappInFlight.current = false;
+    }
+  }
+
   return <Card>
     <CardHeader className="border-b border-line">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
@@ -129,14 +223,28 @@ export function AlertsView() {
             <Filter className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input aria-label="Filter alerts by asset" value={asset} onChange={(event) => setAsset(event.target.value)} placeholder="Asset / owner" className="pl-9" />
           </div>
+          </div>
         </div>
-      </div>
+        {state.role !== "Manager" && <div className="mt-4 grid gap-4 rounded-lg border border-[#b8cedc] bg-[#eef7fb] p-3 md:grid-cols-[1.35fr_.65fr] md:p-4">
+          <div>
+            <div className="eyebrow text-accent">Twilio WhatsApp trial</div>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">Sends this fixed sample regardless of the selected alert; actual asset details are not sent.</p>
+            <p className="mt-2 rounded-md border border-white/80 bg-white/70 px-2 py-2 text-xs leading-relaxed text-navy">Alert: System downtime detected. Engineers notified. ETA to resolution: 2 hours. Reply STATUS for updates. Test message from Twilio.</p>
+          </div>
+          <div>
+            <label className="eyebrow block" htmlFor="whatsapp-demo-key">Demo access key</label>
+            <Input id="whatsapp-demo-key" type="password" autoComplete="off" value={whatsappAccessKey} onChange={(event) => setWhatsappAccessKey(event.target.value)} placeholder="Enter trial key" className="mt-1.5 w-full bg-white" />
+            <p className="mt-1 text-[11px] text-slate-500">Cleared when you leave this page. {whatsappConfigured ? whatsappStatus.recipientLabel : whatsappStatus.phase === "loading" ? "Checking trial configuration…" : whatsappStatus.message ?? "Trial messaging is not configured."}</p>
+          </div>
+        </div>}
     </CardHeader>
     <CardContent className="p-4 sm:p-5">
       {visible.length ? <div className="flex flex-col gap-2">
         {visible.map((alert) => {
           const feedback = emailFeedback[alert.id];
           const emailSent = Boolean(alert.emailSentAt || localAccepted[alert.id] || feedback?.state === "sent");
+          const whatsappAlertFeedback = whatsappFeedback[alert.id];
+          const whatsappSent = Boolean(alert.whatsappSentAt || whatsappLocalAccepted[alert.id] || whatsappAlertFeedback?.state === "sent");
           const canSend = state.role !== "Manager" && emailConfigured;
           return <div key={alert.id} className={`flex flex-col gap-3 rounded-lg border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${alert.status === "open" ? "border-line bg-white" : "border-line bg-paper opacity-80"}`}>
             <div className="flex min-w-0 items-start gap-3">
@@ -152,11 +260,13 @@ export function AlertsView() {
                 <div className="mt-1 text-xs text-slate-500">{alert.assetRef ?? "System"}{alert.owner ? ` · ${alert.owner}` : ""}{alert.dueDate ? ` · due ${formatDate(alert.dueDate)}` : ""}</div>
                 <div className="mt-1 text-[10px] uppercase tracking-[.08em] text-slate-400">{formatDateTime(alert.timestamp)}{alert.acknowledgedBy && alert.acknowledgedAt ? ` · acknowledged by ${alert.acknowledgedBy} at ${formatDateTime(alert.acknowledgedAt)}` : ""}</div>
                 {feedback && <div className={`mt-2 text-xs ${feedback.state === "error" ? "text-danger" : feedback.state === "sent" ? "text-[#187348]" : "text-slate-500"}`} role={feedback.state === "error" ? "alert" : "status"} aria-live="polite">{feedback.message}</div>}
+                {whatsappAlertFeedback && <div className={`mt-2 text-xs ${whatsappAlertFeedback.state === "error" ? "text-danger" : whatsappAlertFeedback.state === "sent" ? "text-[#187348]" : "text-slate-500"}`} role={whatsappAlertFeedback.state === "error" ? "alert" : "status"} aria-live="polite">{whatsappAlertFeedback.message}</div>}
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {state.role !== "Manager" && alert.status === "open" && !alert.acknowledgedAt && <Button variant="outline" size="sm" onClick={() => update((current) => acknowledgeAlert(current, alert.id))}><Check data-icon="inline-start" />Acknowledge</Button>}
               {canSend && <Button variant="outline" size="sm" disabled={Boolean(storageWarning) || isEmailSending || Boolean(feedback?.state === "sending" || emailSent)} onClick={() => void sendEmail(alert)}><Mail data-icon="inline-start" />{feedback?.state === "sending" ? "Sending…" : emailSent ? "Email accepted" : "Send email"}</Button>}
+              {state.role !== "Manager" && <Button variant="outline" size="sm" disabled={!whatsappConfigured || !whatsappAccessKey.trim() || Boolean(storageWarning) || isWhatsAppSending || Boolean(whatsappAlertFeedback?.state === "sending" || whatsappSent)} onClick={() => void sendWhatsAppTest(alert)}><MessageCircle data-icon="inline-start" />{whatsappAlertFeedback?.state === "sending" ? "Sending…" : whatsappSent ? "WhatsApp accepted" : "Send WhatsApp test"}</Button>}
               {alert.status === "resolved" && <span className="flex items-center gap-1 text-xs font-semibold text-[#187348]"><RotateCcw className="size-3" />Resolved by condition</span>}
             </div>
           </div>;

@@ -112,6 +112,7 @@ export type Alert = {
   acknowledgedBy?: Role;
   acknowledgedAt?: string;
   emailSentAt?: string;
+  whatsappSentAt?: string;
 };
 
 export type Activity = {
