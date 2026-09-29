@@ -1,6 +1,6 @@
 # KeeTrack demo
 
-KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS and a guarded Twilio WhatsApp trial are available only for explicitly requested single-alert actions; there is no database or background messaging integration.
+KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS and a Twilio WhatsApp trial are available only for explicitly requested single-alert actions; there is no database or background messaging integration.
 
 ## Setup
 
@@ -12,7 +12,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` or the Twilio variables to the browser. EmailJS uses the three `NEXT_PUBLIC_EMAILJS_*` values; the WhatsApp trial requires all six `TWILIO_*`/`WHATSAPP_DEMO_SEND_KEY` values in the server environment. Leave either set of values unset to keep that channel disabled.
+The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` or the Twilio variables to the browser. EmailJS uses the three `NEXT_PUBLIC_EMAILJS_*` values; the WhatsApp trial requires all five `TWILIO_*` values in the server environment. Leave either set of values unset to keep that channel disabled.
 
 Run the focused checks with:
 
@@ -29,7 +29,7 @@ npm run build
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.
 5. On Alerts, an Admin, Engineer or Reviewer can click **Send email** on one alert. The EmailJS template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KeeTrack sends only when you click and has no automatic or bulk send action.
-6. On Alerts, enter the separate trial access key once and click **Enable on this browser**. KeeTrack keeps a signed 30-day HttpOnly browser session; the raw key is never stored in localStorage or the cookie. Then click **Send WhatsApp test** on one alert. The message is always the fixed system-downtime sample; the selected alert is used only to mark local state.
+6. Open **Demo Controls → WhatsApp trial** to check configuration and the sample message. Reconnect the recipient in the Twilio trial console, then click **Send WhatsApp test** on one alert. No demo access key is required. The message is always the fixed system-downtime sample; the selected alert is used only to mark local state.
 7. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
 Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [github.com/Kuroshio-AI/keetrack](https://github.com/Kuroshio-AI/keetrack).
@@ -56,8 +56,8 @@ The provider template is versioned at [`docs/emailjs-template.html`](docs/emailj
 
 ## Trial WhatsApp
 
-The WhatsApp action posts same-origin `alertId` JSON to `/api/alerts/whatsapp`; the browser never chooses the recipient, sender, template, message body or private register details. The server requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_WHATSAPP_TO`, `TWILIO_WHATSAPP_CONTENT_SID` and a strong `WHATSAPP_DEMO_SEND_KEY` of at least 32 characters. Do not hardcode or commit any account, phone, template or access-key value. Enter the access key once and use **Enable on this browser**; the server returns a signed 30-day HttpOnly, SameSite=Strict cookie. The raw key is never stored in localStorage or the cookie. **Disconnect** clears this browser session, and rotating the server key invalidates existing sessions.
+The WhatsApp action posts same-origin `alertId` JSON to `/api/alerts/whatsapp`; the browser never chooses the recipient, sender, template, message body or private register details. The server requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_WHATSAPP_TO` and `TWILIO_WHATSAPP_CONTENT_SID`. Keep these values in the server environment, never in browser code or the repository. Demo Controls shows configuration status, the masked recipient and the fixed sample. There is no separate demo access key or browser authorization; anyone with access to this public demo can request the fixed message to the configured recipient.
 
 This specific trial requires reconnecting the WhatsApp recipient in the Twilio console for each console session and supports only predefined template content.
 
-Every trial send uses this generic fictional sample: `Alert: System downtime detected. Engineers notified. ETA to resolution: 2 hours. Reply STATUS for updates. Test message from Twilio.` A successful Twilio acceptance is not delivery confirmation. Network, timeout and malformed-provider responses say to check Twilio before retrying; the action never retries automatically. Accepted and ambiguous results are held in a bounded warm-instance replay cache for 10 minutes, with a three-second per-instance cooldown and a maximum of 500 alert keys. Cold starts or multiple server instances can reset or bypass those in-memory protections, so the demo key remains the real boundary. There are no scheduled, background or bulk sends.
+Every trial send uses this generic fictional sample: `Alert: System downtime detected. Engineers notified. ETA to resolution: 2 hours. Reply STATUS for updates. Test message from Twilio.` A successful Twilio acceptance is not delivery confirmation. Network, timeout and malformed-provider responses say to check Twilio before retrying; the action never retries automatically. Accepted and ambiguous results are held in a bounded warm-instance replay cache for 10 minutes, with a three-second per-instance cooldown and a maximum of 500 alert keys. Cold starts or multiple server instances can reset or bypass those in-memory protections; they are not authentication or a global quota limit. Add authentication and shared rate limiting before expanding access or recipients. There are no scheduled, background or bulk sends.
