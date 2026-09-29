@@ -24,7 +24,7 @@ npm run build
 
 ## Five-to-seven-minute walkthrough
 
-1. Start on Dashboard. Open **Demo Controls** to download **Filled sample .xlsx**, then upload it in **Import**. You can also click **Preview filled sample** in Demo Controls to open the import review screen. The sample uses the visible demo date and includes HAR-001, LIF-014, LIC-023, ANC-009, a valid certificate and retired HAR-004.
+1. Start on Dashboard. Open **Demo Controls** to download **Filled sample 1** for inspections and approvals or **Filled sample 2** for renewals and retirement, then upload it in **Import**. You can preview either sample from its link; both use the visible demo date, contain six records and have no inspection history until you create it through the workflow.
 2. Review the six valid rows and click **Import valid rows**. Open Dashboard to see the 30-day, 7-day, today and overdue queues.
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.

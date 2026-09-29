@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { parseRegisterFile } from "@/lib/import";
 import { importRows, toExceptionCsv, validateRegisterRows } from "@/lib/domain";
-import { rowToRaw, sampleRows } from "@/lib/sample";
+import { rowToRaw, sampleRows, type SampleId } from "@/lib/sample";
 import type { ImportError, ImportPreview } from "@/lib/types";
 
 function download(name: string, body: BlobPart, type: string) {
@@ -25,13 +25,18 @@ function Stat({ label, value, tone = "normal" }: { label: string; value: number;
 }
 
 export function ImportView() {
-  const { state, update, hydrated, storageWarning } = useApp();
   const searchParams = useSearchParams();
+  const sample = searchParams.get("sample");
+  const sampleId: SampleId | undefined = sample === "1" || sample === "2" ? sample : undefined;
+  return <ImportContent key={sampleId ?? "empty"} sampleId={sampleId} />;
+}
+
+function ImportContent({ sampleId }: { sampleId?: SampleId }) {
+  const { state, update, hydrated, storageWarning } = useApp();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const sampleRequested = searchParams.get("sample") === "1";
-  const [preview, setPreview] = useState<ImportPreview | undefined>(() => sampleRequested ? validateRegisterRows(sampleRows(state.demoDate).map(rowToRaw), state.records.map((record) => record.assetRef)) : undefined);
-  const [fileName, setFileName] = useState(() => sampleRequested ? "keetrack-sample-register.csv" : "");
+  const [preview, setPreview] = useState<ImportPreview | undefined>(() => sampleId ? validateRegisterRows(sampleRows(state.demoDate, sampleId).map(rowToRaw), state.records.map((record) => record.assetRef)) : undefined);
+  const [fileName, setFileName] = useState(() => sampleId ? `keetrack-sample-${sampleId}-register.csv` : "");
   const [error, setError] = useState("");
   const [lastImport, setLastImport] = useState<{ imported: number; skipped: number; errors: number; issues: ImportError[] }>();
   const [dragging, setDragging] = useState(false);

@@ -1,7 +1,17 @@
 import { addDays } from "./domain";
 import { REGISTER_HEADERS, type RegisterRow } from "./types";
 
-export function sampleRows(demoDate: string): RegisterRow[] {
+export type SampleId = "1" | "2";
+
+export function sampleRows(demoDate: string, sample: SampleId = "1"): RegisterRow[] {
+  if (sample === "2") return [
+    { assetRef: "ANC-201", recordType: "equipment", assetType: "Anchor Point", site: "Riverside Depot", owner: "Nora Iyer", serialNo: "AP-201-RD", assignedEngineer: "Dev Shah", inspectionDueDate: demoDate, inspectionIntervalMonths: 12, certificateNo: "CERT-DEMO-0201", certificateIssuedDate: addDays(demoDate, -365), certificateExpiryDate: addDays(demoDate, -1), retirementDueDate: addDays(demoDate, 30), status: "Active" },
+    { assetRef: "LIC-202", recordType: "licence", assetType: "Work-at-Height Licence", site: "Riverside Depot", owner: "Amal Joseph", assignedEngineer: "Leah Wong", licenceExpiryDate: addDays(demoDate, 7), status: "Active" },
+    { assetRef: "HAR-203", recordType: "equipment", assetType: "Full Body Harness", site: "Riverside Depot", owner: "Tara Menon", serialNo: "FBH-203-26", assignedEngineer: "Dev Shah", inspectionDueDate: addDays(demoDate, 90), inspectionIntervalMonths: 6, retirementDueDate: demoDate, status: "Active" },
+    { assetRef: "SRL-204", recordType: "equipment", assetType: "Self-Retracting Lifeline", site: "Riverside Depot", owner: "Kiran Bose", serialNo: "SRL-204-25", assignedEngineer: "Leah Wong", inspectionDueDate: addDays(demoDate, 30), inspectionIntervalMonths: 6, certificateNo: "CERT-DEMO-0204", certificateIssuedDate: addDays(demoDate, -180), certificateExpiryDate: addDays(demoDate, 7), status: "Active" },
+    { assetRef: "KIT-205", recordType: "equipment", assetType: "Rescue Kit", site: "Riverside Depot", owner: "Mira Das", serialNo: "RKT-205-26", assignedEngineer: "Dev Shah", inspectionDueDate: addDays(demoDate, 90), inspectionIntervalMonths: 12, certificateNo: "CERT-DEMO-0205", certificateIssuedDate: addDays(demoDate, -180), certificateExpiryDate: addDays(demoDate, 180), status: "Active" },
+    { assetRef: "LIF-206", recordType: "equipment", assetType: "Horizontal Lifeline", site: "Riverside Depot", owner: "Omar Khan", serialNo: "HLL-206-23", assignedEngineer: "Leah Wong", inspectionDueDate: addDays(demoDate, -14), inspectionIntervalMonths: 6, retirementDueDate: addDays(demoDate, -7), status: "Retired" },
+  ];
   return [
     { assetRef: "HAR-001", recordType: "equipment", assetType: "Full Body Harness", site: "Northpoint Works", owner: "Maya Singh", serialNo: "FBH-001-26", assignedEngineer: "Leo Hart", inspectionDueDate: addDays(demoDate, 7), inspectionIntervalMonths: 6, status: "Active" },
     { assetRef: "LIF-014", recordType: "equipment", assetType: "Horizontal Lifeline", site: "Northpoint Works", owner: "Rory Chen", serialNo: "HLL-014-24", assignedEngineer: "Leo Hart", inspectionDueDate: addDays(demoDate, -3), inspectionIntervalMonths: 6, status: "Active" },
