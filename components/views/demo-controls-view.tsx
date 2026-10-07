@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { sampleRows } from "@/lib/sample";
 import { downloadRegister } from "@/lib/register-download";
 import { Select } from "@/components/ui/select";
+import { readSendCode, writeSendCode } from "@/lib/whatsapp-send-code";
 import { addMonthsClamped, approveInspection, createInspection, setDeadlineShortcut, submitInspection, updateInspection } from "@/lib/domain";
 
 export function DemoControlsView() {
@@ -24,6 +25,9 @@ export function DemoControlsView() {
   const [tokenInput, setTokenInput] = useState("");
   const [tokenSaving, setTokenSaving] = useState(false);
   const [tokenMessage, setTokenMessage] = useState("");
+  const [sendCodeInput, setSendCodeInput] = useState("");
+  const [sendCodeSaved, setSendCodeSaved] = useState(false);
+  const [sendCodeMessage, setSendCodeMessage] = useState("");
   const selected = state.records.find((record) => record.id === assetId);
   const submitted = state.inspections.find((inspection) => inspection.status === "Submitted");
 
@@ -49,6 +53,15 @@ export function DemoControlsView() {
       .catch(() => { if (!ignore) setWhatsapp({ configured: false, message: "Configuration unavailable. Refresh to check again." }); });
     return () => { ignore = true; controller.abort(); };
   }, [whatsappVersion]);
+
+  useEffect(() => { setSendCodeSaved(Boolean(readSendCode())); }, []);
+
+  function saveSendCode(code: string) {
+    if (!writeSendCode(code)) { setSendCodeMessage("This browser could not save the code. Check that site storage is allowed."); return; }
+    setSendCodeInput("");
+    setSendCodeSaved(Boolean(code));
+    setSendCodeMessage(code ? "Send code saved in this browser. Alerts will use it." : "Send code removed from this browser.");
+  }
 
   async function saveToken() {
     setTokenSaving(true);
@@ -104,9 +117,19 @@ export function DemoControlsView() {
           <div role="status"><Badge variant={whatsapp.configured ? "success" : "secondary"}>{whatsapp.message}</Badge>
             {whatsapp.recipientLabel && <p className="mt-2 text-sm text-slate-600">{whatsapp.recipientLabel}</p>}
           </div>
-          <p className="text-sm leading-relaxed text-slate-500">Configure the Meta WhatsApp Cloud API credentials, fixed recipient, configured template and WhatsApp send code in the server environment before presenting. Enter the private code on Alerts; it is forgotten when you leave the page.</p>
+          <p className="text-sm leading-relaxed text-slate-500">Configure the Meta WhatsApp Cloud API credentials, fixed recipient, configured template and WhatsApp send code in the server environment before presenting. Save the private send code below once; this browser remembers it for Alerts.</p>
           {whatsapp.configured && <p className="text-xs leading-relaxed text-slate-500">Webhook verification settings: {whatsapp.webhookConfigured ? "present" : "not set"}. Authenticated callbacks are acknowledged for this demo but are not stored.</p>}
           <Button asChild variant="outline" size="sm"><Link href="/alerts">Open Alerts</Link></Button>
+          {whatsapp.configured && <form className="space-y-2 border-t border-line pt-3" onSubmit={(event) => { event.preventDefault(); saveSendCode(sendCodeInput.trim()); }}>
+            <label className="eyebrow" htmlFor="whatsapp-send-code">WhatsApp send code</label>
+            <p className="text-xs leading-relaxed text-slate-500">Needed to send alerts. Saved in this browser only. {sendCodeSaved ? "A code is saved." : "No code saved yet."}</p>
+            <div className="flex gap-2">
+              <Input id="whatsapp-send-code" type="password" autoComplete="off" value={sendCodeInput} onChange={(event) => setSendCodeInput(event.target.value)} placeholder="Enter private code" />
+              <Button type="submit" size="sm" disabled={!sendCodeInput.trim()}>Save code</Button>
+              {sendCodeSaved && <Button type="button" variant="ghost" size="sm" onClick={() => saveSendCode("")}>Forget</Button>}
+            </div>
+            {sendCodeMessage && <p className="text-sm text-navy" role="status">{sendCodeMessage}</p>}
+          </form>}
           {whatsapp.tokenUpdatable && <form className="space-y-2 border-t border-line pt-3" onSubmit={(event) => { event.preventDefault(); void saveToken(); }}>
             <label className="eyebrow" htmlFor="meta-access-token">Meta access token</label>
             <p className="text-xs leading-relaxed text-slate-500">Paste a new token when the current one expires. Meta must confirm it works with the KeeTrack WhatsApp number before it is saved. {whatsapp.tokenSource === "website" ? "Currently using a token saved here." : "Currently using the server token."}</p>

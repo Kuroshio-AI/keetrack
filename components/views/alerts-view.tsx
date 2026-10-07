@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { acknowledgeAlert } from "@/lib/domain";
 import { EMAIL_CC, EMAIL_RECIPIENT, getEmailJsConfig, sendAlertEmail } from "@/lib/email";
 import type { Alert } from "@/lib/types";
+import { readSendCode } from "@/lib/whatsapp-send-code";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 type EmailFeedback = {
@@ -22,7 +23,6 @@ type EmailFeedback = {
 type WhatsAppConfigState = {
   phase: "loading" | "ready" | "error";
   configured: boolean;
-  requiresSendKey: boolean;
   message?: string;
 };
 
@@ -34,8 +34,7 @@ export function AlertsView() {
   const [asset, setAsset] = useState("");
   const [emailFeedback, setEmailFeedback] = useState<Record<string, EmailFeedback>>({});
   const [localAccepted, setLocalAccepted] = useState<Record<string, string>>({});
-  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppConfigState>({ phase: "loading", configured: false, requiresSendKey: true });
-  const [whatsappSendKey, setWhatsappSendKey] = useState("");
+  const [whatsappStatus, setWhatsappStatus] = useState<WhatsAppConfigState>({ phase: "loading", configured: false });
   const [whatsappFeedback, setWhatsappFeedback] = useState<Record<string, EmailFeedback>>({});
   const [whatsappLocalAccepted, setWhatsappLocalAccepted] = useState<Record<string, string>>({});
   const lastEmailRequestAt = useRef(0);
@@ -55,10 +54,10 @@ export function AlertsView() {
         const body: unknown = await response.json().catch(() => undefined);
         if (!response.ok || !body || typeof body !== "object") throw new Error("WhatsApp Cloud API configuration is unavailable.");
         const candidate = body as Record<string, unknown>;
-        if (!ignore) setWhatsappStatus({ phase: "ready", configured: candidate.configured === true, requiresSendKey: candidate.requiresSendKey === true });
+        if (!ignore) setWhatsappStatus({ phase: "ready", configured: candidate.configured === true });
       })
       .catch((reason) => {
-        if (!ignore && !(reason instanceof DOMException && reason.name === "AbortError")) setWhatsappStatus({ phase: "error", configured: false, requiresSendKey: true, message: "WhatsApp Cloud API configuration is unavailable." });
+        if (!ignore && !(reason instanceof DOMException && reason.name === "AbortError")) setWhatsappStatus({ phase: "error", configured: false, message: "WhatsApp Cloud API configuration is unavailable." });
       });
     return () => { ignore = true; controller.abort(); };
   }, []);
@@ -139,8 +138,9 @@ export function AlertsView() {
       setWhatsAppFeedback(alert.id, { state: "error", message: "WhatsApp Cloud API is not configured. See Demo Controls for details." });
       return;
     }
-    if (!whatsappSendKey) {
-      setWhatsAppFeedback(alert.id, { state: "error", message: "Enter the WhatsApp send code before sending." });
+    const sendCode = readSendCode();
+    if (!sendCode) {
+      setWhatsAppFeedback(alert.id, { state: "error", message: "Save the WhatsApp send code in Demo Controls first. No request was sent." });
       return;
     }
     if (storageWarning) {
@@ -170,7 +170,7 @@ export function AlertsView() {
         response = await fetch("/api/alerts/whatsapp", {
           method: "POST",
           cache: "no-store",
-          headers: { Accept: "application/json", "Content-Type": "application/json", "X-KeeTrack-Send-Key": whatsappSendKey },
+          headers: { Accept: "application/json", "Content-Type": "application/json", "X-KeeTrack-Send-Key": sendCode },
           body: JSON.stringify(payload),
         });
       } catch {
@@ -242,11 +242,6 @@ export function AlertsView() {
         {!whatsappConfigured && <>{whatsappStatus.phase === "loading" ? "Checking WhatsApp Cloud API configuration…" : whatsappStatus.message ?? "WhatsApp Cloud API is not configured."} </>}
         <Link href="/demo-controls#whatsapp-trial" className="font-semibold text-accent underline underline-offset-2">WhatsApp demo settings</Link>
       </p>}
-      {state.role !== "Manager" && whatsappStatus.requiresSendKey && <div className="mt-3 max-w-sm">
-        <label className="eyebrow" htmlFor="whatsapp-send-key">WhatsApp send code</label>
-        <Input id="whatsapp-send-key" type="password" autoComplete="off" value={whatsappSendKey} onChange={(event) => setWhatsappSendKey(event.target.value)} placeholder="Enter private code" className="mt-1.5" />
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">Required for manual sends. Enter the code again after leaving the Alerts page.</p>
-      </div>}
     </CardHeader>
     <CardContent className="p-4 sm:p-5">
       {visible.length ? <div className="flex flex-col gap-2">
@@ -276,7 +271,7 @@ export function AlertsView() {
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {state.role !== "Manager" && alert.status === "open" && !alert.acknowledgedAt && <Button variant="outline" size="sm" onClick={() => update((current) => acknowledgeAlert(current, alert.id))}><Check data-icon="inline-start" />Acknowledge</Button>}
               {canSend && <Button variant="outline" size="sm" disabled={Boolean(storageWarning) || isEmailSending || Boolean(feedback?.state === "sending" || emailSent)} onClick={() => void sendEmail(alert)}><Mail data-icon="inline-start" />{feedback?.state === "sending" ? "Sending…" : emailSent ? "Email accepted" : "Send email"}</Button>}
-              {state.role !== "Manager" && <Button variant="outline" size="sm" disabled={!whatsappConfigured || !whatsappSendKey || Boolean(storageWarning) || isWhatsAppSending || Boolean(whatsappAlertFeedback?.state === "sending" || whatsappSent)} onClick={() => void sendWhatsAppAlert(alert)}><MessageCircle data-icon="inline-start" />{whatsappAlertFeedback?.state === "sending" ? "Sending…" : whatsappSent ? "WhatsApp accepted" : "Send WhatsApp alert"}</Button>}
+              {state.role !== "Manager" && <Button variant="outline" size="sm" disabled={!whatsappConfigured || Boolean(storageWarning) || isWhatsAppSending || Boolean(whatsappAlertFeedback?.state === "sending" || whatsappSent)} onClick={() => void sendWhatsAppAlert(alert)}><MessageCircle data-icon="inline-start" />{whatsappAlertFeedback?.state === "sending" ? "Sending…" : whatsappSent ? "WhatsApp accepted" : "Send WhatsApp alert"}</Button>}
               {alert.status === "resolved" && <span className="flex items-center gap-1 text-xs font-semibold text-[#187348]"><RotateCcw className="size-3" />Resolved by condition</span>}
             </div>
           </div>;
