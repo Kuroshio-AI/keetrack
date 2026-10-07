@@ -3,14 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { ExternalLink, Printer, QrCode, ShieldCheck } from "lucide-react";
+import { ExternalLink, FileBadge, Printer, QrCode, ShieldCheck } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { changeCertificateStatus, effectiveCertificateStatus } from "@/lib/domain";
+import { Signature, WarrantyDocument, type WarrantyPrint } from "@/components/warranty-document";
+import { addMonthsClamped, effectiveCertificateStatus, revokeCertificate } from "@/lib/domain";
 import type { AssetRecord, Certificate } from "@/lib/types";
-import { formatDate, formatLocalDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 function snapshot(record: AssetRecord, certificate: Certificate, demoDate: string) {
   return { certificateNo: certificate.number, assetRef: record.assetRef, assetType: record.assetType, issuedDate: certificate.issuedDate, expiryDate: certificate.expiryDate, status: effectiveCertificateStatus(certificate, demoDate) };
@@ -18,8 +19,11 @@ function snapshot(record: AssetRecord, certificate: Certificate, demoDate: strin
 type QrSnapshot = { image: string; url: string; key: string; createdAt: number };
 type PrintSnapshot = ReturnType<typeof snapshot> & { result: string; qr: string; site: string; serialNo?: string; inspector?: string; inspectedAt?: string; approvedAt?: string; nextInspection?: string };
 
-function Signature({ label, name, date }: { label: string; name: string; date?: string }) {
-  return <div><div className="h-12 border-b border-[#0b3151]/40" /><div className="mt-2 text-sm font-semibold text-navy">{name}</div><div className="text-xs text-slate-500">{label}{date ? ` · ${formatLocalDate(date)}` : ""}</div></div>;
+async function qrFor(payload: object): Promise<{ image: string; url: string }> {
+  const response = await fetch("/api/certificates/demo-token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  const body = await response.json() as { verifyUrl?: string; error?: string };
+  if (!response.ok || !body.verifyUrl) throw new Error(body.error ?? "QR could not be created. Try again.");
+  return { image: await QRCode.toDataURL(body.verifyUrl, { width: 320, margin: 4, color: { dark: "#0b3151", light: "#ffffff" } }), url: body.verifyUrl };
 }
 
 export function CertificatesView() {
@@ -29,7 +33,7 @@ export function CertificatesView() {
   const [qr, setQr] = useState<Record<string, QrSnapshot>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string>();
-  const [printing, setPrinting] = useState<PrintSnapshot>();
+  const [printing, setPrinting] = useState<({ kind: "certificate" } & PrintSnapshot) | ({ kind: "warranty" } & WarrantyPrint)>();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (printing) dialog.current?.showModal(); }, [printing]);
   const canChange = state.role === "Admin" || state.role === "Reviewer";
@@ -39,29 +43,40 @@ export function CertificatesView() {
     setError(""); setBusy(certificate.id);
     const payload = snapshot(record, certificate, state.demoDate);
     try {
-      const response = await fetch("/api/certificates/demo-token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-      const body = await response.json() as { verifyUrl?: string; error?: string };
-      if (!response.ok || !body.verifyUrl) throw new Error(body.error ?? "QR could not be created. Try again.");
-      const image = await QRCode.toDataURL(body.verifyUrl, { width: 320, margin: 4, color: { dark: "#0b3151", light: "#ffffff" } });
+      const { image, url } = await qrFor(payload);
       const latestRecord = currentState.current.records.find((item) => item.id === record.id);
       const latestCertificate = latestRecord?.certificates.find((item) => item.id === certificate.id);
       if (!latestRecord || !latestCertificate || JSON.stringify(payload) !== JSON.stringify(snapshot(latestRecord, latestCertificate, currentState.current.demoDate))) throw new Error("Certificate changed while generating this QR. Please try again.");
-      const result = { image, url: body.verifyUrl, key: JSON.stringify(payload), createdAt: Date.now() };
+      const result = { image, url, key: JSON.stringify(payload), createdAt: Date.now() };
       setQr((current) => ({ ...current, [certificate.id]: result }));
       return result;
     } catch (reason) { setError(reason instanceof Error ? reason.message : "QR generation failed. Try again."); }
     finally { setBusy(undefined); }
   }
 
-  function changeStatus(record: AssetRecord, certificate: Certificate, status: "Revoked" | "Superseded") {
-    if (!window.confirm(`${status === "Revoked" ? "Revoke" : "Supersede"} ${certificate.number} for ${record.assetRef}? This cannot be undone.`)) return;
-    if (update((current) => changeCertificateStatus(current, record.id, certificate.id, status))) void makeQr(record, { ...certificate, status });
+  // Superseding happens automatically when a newer certificate is approved, so revoke is the only manual status change.
+  function revoke(record: AssetRecord, certificate: Certificate) {
+    if (!window.confirm(`Revoke ${certificate.number} for ${record.assetRef}? This cannot be undone.`)) return;
+    if (update((current) => revokeCertificate(current, record.id, certificate.id))) void makeQr(record, { ...certificate, status: "Revoked" });
   }
 
   async function print(record: AssetRecord, certificate: Certificate) {
     const fresh = await makeQr(record, certificate);
     const inspection = state.inspections.find((item) => item.id === certificate.sourceInspectionId);
-    if (fresh) setPrinting({ ...snapshot(record, certificate, state.demoDate), result: certificate.result, qr: fresh.image, site: record.site, serialNo: record.serialNo, inspector: inspection?.inspector, inspectedAt: inspection?.submittedAt, approvedAt: inspection?.reviewedAt, nextInspection: inspection?.nextInspectionDate ?? record.inspectionDueDate });
+    if (fresh) setPrinting({ kind: "certificate", ...snapshot(record, certificate, state.demoDate), result: certificate.result, qr: fresh.image, site: record.site, serialNo: record.serialNo, inspector: inspection?.inspector, inspectedAt: inspection?.submittedAt, approvedAt: inspection?.reviewedAt, nextInspection: inspection?.nextInspectionDate ?? record.inspectionDueDate });
+  }
+
+  // One warranty per asset, dated from its first certificate so renewal inspections don't restart the 5 years.
+  async function printWarranty(record: AssetRecord, certificate: Certificate) {
+    setError(""); setBusy(`warranty:${certificate.id}`);
+    const warrantyDate = record.certificates.map((item) => item.issuedDate).sort()[0];
+    const validUntil = addMonthsClamped(warrantyDate, 60);
+    const warranty = { warrantyNo: `WAR-${record.assetRef}`, status: state.demoDate > validUntil ? "Expired" as const : "Valid" as const, warrantyDate, validUntil };
+    try {
+      const { image } = await qrFor({ kind: "warranty", certificateNo: warranty.warrantyNo, assetRef: record.assetRef, assetType: record.assetType, issuedDate: warrantyDate, expiryDate: validUntil, status: warranty.status });
+      setPrinting({ kind: "warranty", ...warranty, product: /horizontal lifeline/i.test(record.assetType) ? "KeeLine® Horizontal Lifeline System" : record.assetType, assetRef: record.assetRef, serialNo: record.serialNo, site: record.site, owner: record.owner, asOf: state.demoDate, qr: image });
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Warranty could not be prepared. Try again."); }
+    finally { setBusy(undefined); }
   }
 
   return <div className="flex flex-col gap-5">
@@ -70,27 +85,27 @@ export function CertificatesView() {
         const details = snapshot(record, certificate, state.demoDate);
         const cached = qr[certificate.id];
         const currentQr = cached?.key === JSON.stringify(details) && Date.now() - cached.createdAt < 24 * 60 * 60 * 1000 ? cached : undefined;
+        // Keep the old QR on screen while its replacement generates; hiding it shrinks the page and jumps the scroll to the top.
+        const shownQr = currentQr ?? (busy === certificate.id ? cached : undefined);
         return <div key={certificate.id} className="min-w-0 rounded-xl border border-line bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="eyebrow">{record.assetRef} · {record.site}</div><h3 className="mt-1 break-all text-lg font-bold text-navy">{certificate.number}</h3><p className="mt-1 text-sm text-slate-500">{record.assetType}</p></div><Badge variant={details.status === "Valid" ? "success" : details.status === "Expired" ? "warning" : "danger"}>{details.status}</Badge></div>
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-paper p-3 text-sm"><div><div className="eyebrow">Issued</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.issuedDate)}</div></div><div><div className="eyebrow">Expires</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.expiryDate)}</div></div></div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void print(record, certificate)}><Printer />Print</Button>
+            <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void printWarranty(record, certificate)}><FileBadge />{busy === `warranty:${certificate.id}` ? "Preparing…" : "Warranty"}</Button>
             <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => void makeQr(record, certificate)}><QrCode />{busy === certificate.id ? "Generating…" : currentQr ? "Refresh QR" : "Create QR"}</Button>
             {currentQr && <Button asChild variant="ghost" size="sm"><a href={currentQr.url} target="_blank" rel="noreferrer"><ExternalLink />Open verification</a></Button>}
-            {canChange && (details.status === "Valid" || details.status === "Expired") && <>
-              <Button variant="ghost" size="sm" className="text-danger" disabled={Boolean(busy)} onClick={() => changeStatus(record, certificate, "Revoked")}>Revoke</Button>
-              <Button variant="ghost" size="sm" disabled={Boolean(busy)} onClick={() => changeStatus(record, certificate, "Superseded")}>Supersede</Button>
-            </>}
+            {canChange && (details.status === "Valid" || details.status === "Expired") && <Button variant="ghost" size="sm" className="text-danger" disabled={Boolean(busy)} onClick={() => revoke(record, certificate)}>Revoke</Button>}
           </div>
-          {currentQr && <div className="mt-4 flex flex-col items-center gap-3 rounded-lg border border-line p-3 sm:flex-row"><img src={currentQr.image} alt={`QR code for ${certificate.number}`} className="size-48 shrink-0" /><p className="text-xs leading-relaxed text-slate-500">Signed demo snapshot: {details.status}. Expires in 24 hours. Old links keep their original status until expiry.</p></div>}
+          {shownQr && <div className="mt-4 flex flex-col items-center gap-3 rounded-lg border border-line p-3 sm:flex-row"><img src={shownQr.image} alt={`QR code for ${certificate.number}`} className={`size-48 shrink-0 transition-opacity ${currentQr ? "" : "opacity-30"}`} /><p className="text-xs leading-relaxed text-slate-500" aria-live="polite">{currentQr ? `Signed demo snapshot: ${details.status}. Expires in 24 hours. Old links keep their original status until expiry.` : "Updating QR…"}</p></div>}
         </div>;
       })}</div> : <div className="rounded-lg border border-dashed border-line px-4 py-14 text-center"><ShieldCheck className="mx-auto size-9 text-[#b8cedc]" /><p className="mt-3 text-sm text-slate-500">Import a supplied certificate or approve a passed inspection to begin.</p></div>}
         {error && <p className="mt-4 rounded-lg bg-[#fff3f3] p-3 text-sm text-danger" role="alert">{error}</p>}
       </CardContent>
     </Card>
-    {printing && createPortal(<dialog ref={dialog} aria-label="Certificate print preview" onClose={() => setPrinting(undefined)} className="certificate-print-area fixed inset-0 m-auto max-h-[95vh] w-[min(95vw,850px)] overflow-auto bg-white p-5 backdrop:bg-black/50 sm:p-10">
+    {printing && createPortal(<dialog ref={dialog} aria-label={printing.kind === "warranty" ? "Warranty print preview" : "Certificate print preview"} onClose={() => setPrinting(undefined)} className="certificate-print-area animate-rise fixed inset-0 m-auto max-h-[95vh] w-[min(95vw,850px)] overflow-auto bg-white p-5 backdrop:bg-black/50 sm:p-10">
       <div className="print-hidden mb-5 flex justify-end gap-2"><Button onClick={() => window.print()}>Print / Save PDF</Button><Button variant="outline" onClick={() => dialog.current?.close()}>Close</Button></div>
-      <div className="mx-auto border-[8px] border-[#0b3151] p-1"><div className="border border-[#b8cedc] p-5 sm:p-10">
+      {printing.kind === "warranty" ? <WarrantyDocument {...printing} /> : <div className="mx-auto border-[8px] border-[#0b3151] p-1"><div className="border border-[#b8cedc] p-5 sm:p-10">
         <div className="flex items-start justify-between gap-4"><div><div className="text-xs font-bold uppercase tracking-[.2em] text-accent">Kee Safety · KeeTrack</div><h2 className="mt-5 text-3xl font-black tracking-tight text-navy">Certificate of inspection</h2></div><Badge variant="warning">DEMO</Badge></div>
         <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
           <div className="col-span-2"><dt className="eyebrow">Certificate number</dt><dd className="mt-1 break-all text-lg font-bold text-navy">{printing.certificateNo}</dd></div>
@@ -102,7 +117,7 @@ export function CertificatesView() {
           <div className="grid flex-1 gap-8 sm:grid-cols-2"><Signature label="Inspected by" name={printing.inspector ?? "Not recorded"} date={printing.inspectedAt} /><Signature label="Approved by" name="Authorised reviewer" date={printing.approvedAt} /></div>
         </div>
         <p className="mt-6 border-t border-line pt-4 text-xs leading-relaxed text-slate-500">Demo certificate · fictional data. QR verification is a signed snapshot valid for 24 hours; it is not live certification.</p>
-      </div></div>
+      </div></div>}
     </dialog>, document.body)}
   </div>;
 }

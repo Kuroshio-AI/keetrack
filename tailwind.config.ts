@@ -13,7 +13,7 @@ const config: Config = {
         navy: "hsl(var(--navy))",
         accent: "hsl(var(--accent))",
         danger: "hsl(var(--danger))",
-        warning: "hsl(var(--warning))",
+        warning: "hsl(var(--warning) / <alpha-value>)",
         success: "hsl(var(--success) / <alpha-value>)",
       },
       boxShadow: {

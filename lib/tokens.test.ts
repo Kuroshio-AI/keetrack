@@ -17,3 +17,11 @@ test("demo certificate tokens expire after their TTL", () => {
   const token = createDemoToken(snapshot, secret, now);
   assert.equal(verifyDemoToken(token, secret, now + 86_400_001).ok, false);
 });
+
+test("warranty tokens keep their kind and reject unknown kinds", () => {
+  const now = Date.parse("2026-01-02T00:00:00Z");
+  const verified = verifyDemoToken(createDemoToken({ ...snapshot, kind: "warranty" }, secret, now), secret, now);
+  assert.equal(verified.ok && verified.snapshot.kind, "warranty");
+  const forged = createDemoToken({ ...snapshot, kind: "other" } as unknown as typeof snapshot, secret, now);
+  assert.equal(verifyDemoToken(forged, secret, now).ok, false);
+});

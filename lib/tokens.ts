@@ -10,6 +10,7 @@ export type DemoTokenSnapshot = {
   expiryDate: string;
   status: "Valid" | "Expired" | "Revoked" | "Superseded";
   asOf: string;
+  kind?: "warranty";
   exp: number;
 };
 
@@ -33,6 +34,7 @@ function isSnapshot(value: unknown): value is DemoTokenSnapshot {
   const candidate = value as Partial<DemoTokenSnapshot>;
   return [candidate.certificateNo, candidate.assetRef, candidate.assetType, candidate.issuedDate, candidate.expiryDate, candidate.status, candidate.asOf].every((item) => typeof item === "string")
     && ["Valid", "Expired", "Revoked", "Superseded"].includes(candidate.status as string)
+    && (candidate.kind === undefined || candidate.kind === "warranty")
     && typeof candidate.exp === "number" && Number.isSafeInteger(candidate.exp);
 }
 

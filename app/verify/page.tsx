@@ -12,10 +12,16 @@ const STATUS = {
   Superseded: { icon: ShieldMinus, badge: "bg-warning", band: "bg-[#fff8e8]", title: "Certificate superseded", detail: "A newer certificate replaces this one." },
 } satisfies Record<CertificateStatus, unknown>;
 
+const WARRANTY: Partial<Record<CertificateStatus, { title: string; detail: string }>> = {
+  Valid: { title: "Valid warranty", detail: "This product warranty is in force." },
+  Expired: { title: "Warranty expired", detail: "The 5-year warranty period has ended." },
+};
+
 export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ token?: string | string[] }> }) {
   const { token } = await searchParams;
   const result = typeof token === "string" ? verifyDemoToken(token, process.env.DEMO_CERT_TOKEN_SECRET ?? "") : { ok: false as const, error: "No token supplied" };
-  const tone = result.ok ? STATUS[result.snapshot.status] : { icon: ShieldX, badge: "bg-danger", band: "bg-[#fff5f5]", title: "Cannot verify", detail: result.error };
+  const warranty = result.ok && result.snapshot.kind === "warranty";
+  const tone = result.ok ? { ...STATUS[result.snapshot.status], ...(warranty ? WARRANTY[result.snapshot.status] : {}) } : { icon: ShieldX, badge: "bg-danger", band: "bg-[#fff5f5]", title: "Cannot verify", detail: result.error };
   const Icon = tone.icon;
   return <main className="min-h-screen bg-[#f3f7f9] px-4 py-10 sm:py-14">
     <div className="animate-rise mx-auto max-w-md overflow-hidden rounded-2xl border border-[#d4e1e8] bg-white shadow-panel">
@@ -26,15 +32,15 @@ export default async function VerifyPage({ searchParams }: { searchParams: Promi
         <p className="mt-2 text-sm text-slate-600">{tone.detail}</p>
       </div>
       {result.ok && <div className="px-6 py-6">
-        <div className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Certificate number</div>
+        <div className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">{warranty ? "Warranty number" : "Certificate number"}</div>
         <div className="mt-1 break-all font-mono text-xl font-bold text-[#0b3151]">{result.snapshot.certificateNo}</div>
         <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-[#e1e9ee] pt-5">
           <div className="col-span-2"><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Asset</dt><dd className="mt-1 font-semibold text-[#0b3151]">{result.snapshot.assetRef} · {result.snapshot.assetType}</dd></div>
-          <div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Issued</dt><dd className="mt-1 font-semibold text-[#0b3151]">{formatDate(result.snapshot.issuedDate)}</dd></div>
-          <div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">Expires</dt><dd className="mt-1 font-semibold text-[#0b3151]">{formatDate(result.snapshot.expiryDate)}</dd></div>
+          <div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">{warranty ? "Warranty date" : "Issued"}</dt><dd className="mt-1 font-semibold text-[#0b3151]">{formatDate(result.snapshot.issuedDate)}</dd></div>
+          <div><dt className="text-xs font-bold uppercase tracking-[.1em] text-slate-500">{warranty ? "Valid until" : "Expires"}</dt><dd className="mt-1 font-semibold text-[#0b3151]">{formatDate(result.snapshot.expiryDate)}</dd></div>
         </dl>
         {/* Rendered on the server, so the snapshot time is stated in UTC rather than guessing the viewer's zone. */}
-        <p className="mt-6 border-t border-[#e1e9ee] pt-4 text-xs leading-relaxed text-slate-500">Demo certificate · status as of {formatDate(result.snapshot.asOf.slice(0, 10))}, {result.snapshot.asOf.slice(11, 16)} UTC. This is a signed snapshot, not live certification.</p>
+        <p className="mt-6 border-t border-[#e1e9ee] pt-4 text-xs leading-relaxed text-slate-500">Demo {warranty ? "warranty" : "certificate"} · status as of {formatDate(result.snapshot.asOf.slice(0, 10))}, {result.snapshot.asOf.slice(11, 16)} UTC. This is a signed snapshot, not live certification.</p>
       </div>}
     </div>
   </main>;
