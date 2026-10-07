@@ -12,7 +12,6 @@ import { Select } from "@/components/ui/select";
 import { acknowledgeAlert } from "@/lib/domain";
 import { EMAIL_CC, EMAIL_RECIPIENT, getEmailJsConfig, sendAlertEmail } from "@/lib/email";
 import type { Alert } from "@/lib/types";
-import { readSendCode } from "@/lib/whatsapp-send-code";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 type EmailFeedback = {
@@ -138,11 +137,6 @@ export function AlertsView() {
       setWhatsAppFeedback(alert.id, { state: "error", message: "WhatsApp Cloud API is not configured. See Demo Controls for details." });
       return;
     }
-    const sendCode = readSendCode();
-    if (!sendCode) {
-      setWhatsAppFeedback(alert.id, { state: "error", message: "Save the WhatsApp send code in Demo Controls first. No request was sent." });
-      return;
-    }
     if (storageWarning) {
       setWhatsAppFeedback(alert.id, { state: "error", message: "Storage recovery is required before a send can be recorded. No request was sent." });
       return;
@@ -170,7 +164,7 @@ export function AlertsView() {
         response = await fetch("/api/alerts/whatsapp", {
           method: "POST",
           cache: "no-store",
-          headers: { Accept: "application/json", "Content-Type": "application/json", "X-KeeTrack-Send-Key": sendCode },
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } catch {

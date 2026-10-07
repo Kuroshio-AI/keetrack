@@ -1,5 +1,3 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-
 export const META_GRAPH_API_BASE_URL = "https://graph.facebook.com";
 export const WHATSAPP_MAX_BODY_BYTES = 2_048;
 export const WHATSAPP_COOLDOWN_MS = 3_000;
@@ -10,8 +8,6 @@ export const WHATSAPP_NOT_APPLICABLE = "Not applicable";
 const DEFAULT_GRAPH_API_VERSION = "v26.0";
 const DEFAULT_TEMPLATE_NAME = "keetrack_alert_demo";
 const DEFAULT_TEMPLATE_LANGUAGE = "en_US";
-const SEND_KEY_MIN_LENGTH = 32;
-const SEND_KEY_MAX_LENGTH = 256;
 const ALERT_TEXT_MAX_LENGTH = 160;
 const alertIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const phoneNumberIdPattern = /^\d{1,32}$/;
@@ -67,8 +63,8 @@ let inFlight = false;
 let lastTokenAttemptAt: number | undefined;
 const replayCache = new Map<string, CachedResponse>();
 
-// ponytail: this is a public demo with a fixed recipient. The guard only limits a warm instance;
-// use shared rate limiting and authentication before expanding access or recipients.
+// ponytail: unauthenticated public demo with a fixed recipient. The guard only limits a warm instance;
+// add authentication and shared rate limiting before expanding access or recipients.
 export function resetWhatsAppRuntimeForTests(): void {
   lastAttemptAt = undefined;
   inFlight = false;
@@ -103,12 +99,6 @@ function isValidWebhookSetting(value: string | undefined): value is string {
 
 export function isWhatsAppWebhookConfigValid(env: Environment = process.env): boolean {
   return isValidWebhookSetting(rawValue(env, "META_APP_SECRET")) && isValidWebhookSetting(rawValue(env, "META_WHATSAPP_VERIFY_TOKEN"));
-}
-
-function getWhatsAppSendKey(env: Environment = process.env): string | undefined {
-  const sendKey = rawValue(env, "META_WHATSAPP_SEND_KEY");
-  if (!sendKey || sendKey.length < SEND_KEY_MIN_LENGTH || sendKey.length > SEND_KEY_MAX_LENGTH || hasForbiddenHeaderCharacters(sendKey)) return undefined;
-  return sendKey;
 }
 
 export function getWhatsAppConfig(env: Environment = process.env): WhatsAppConfig | undefined {
@@ -263,13 +253,6 @@ function parseAlertPayload(text: string): WhatsAppAlertPayload | undefined {
   }
 }
 
-function constantTimeSecretEqual(supplied: string | null, expected: string): boolean {
-  if (supplied === null) return false;
-  const suppliedHash = createHash("sha256").update(supplied, "utf8").digest();
-  const expectedHash = createHash("sha256").update(expected, "utf8").digest();
-  return timingSafeEqual(suppliedHash, expectedHash);
-}
-
 function pruneReplayCache(now: number): void {
   for (const [key, value] of replayCache) if (value.expiresAt <= now) replayCache.delete(key);
 }
@@ -350,7 +333,6 @@ export async function handleWhatsAppGet(env: Environment = process.env, fetchImp
   return json({
     configured: Boolean(config),
     provider: "Meta",
-    requiresSendKey: true,
     webhookConfigured: isWhatsAppWebhookConfigValid(env),
     tokenUpdatable: isTokenUpdatable(env),
     ...(config ? {
@@ -367,10 +349,7 @@ export async function handleWhatsAppPost(request: Request, options: HandlerOptio
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const { config } = await resolveWhatsAppConfig(env, fetchImpl);
   if (!config) return json({ error: "WhatsApp Cloud API is not configured." }, 503);
-  const expectedSendKey = getWhatsAppSendKey(env);
-  if (!expectedSendKey) return json({ error: "WhatsApp sending is not configured." }, 503);
   if (!sameOrigin(request)) return json({ error: "Same-origin request required." }, 403);
-  if (!constantTimeSecretEqual(request.headers.get("x-keetrack-send-key"), expectedSendKey)) return json({ error: "WhatsApp send key was not accepted." }, 401);
   if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) return json({ error: "Content-Type must be application/json." }, 415);
   const now = options.now?.() ?? Date.now();
 

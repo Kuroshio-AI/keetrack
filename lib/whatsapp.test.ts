@@ -9,12 +9,10 @@ import {
 } from "./whatsapp";
 
 const baseUrl = "https://keetrack.example/api/alerts/whatsapp";
-const sendKey = "send-key-" + "x".repeat(25);
 const env = {
   META_WHATSAPP_ACCESS_TOKEN: "EAAB-test-token",
   META_WHATSAPP_PHONE_NUMBER_ID: "123456789012345",
   META_WHATSAPP_TO: "+15551234567",
-  META_WHATSAPP_SEND_KEY: sendKey,
   META_APP_SECRET: "app-secret",
   META_WHATSAPP_VERIFY_TOKEN: "verify-token",
 };
@@ -35,7 +33,6 @@ function request(body: unknown, headers: Record<string, string> = {}): Request {
       Origin: "https://keetrack.example",
       Host: "keetrack.example",
       "Content-Type": "application/json",
-      "X-KeeTrack-Send-Key": sendKey,
       ...headers,
     },
     body: typeof body === "string" ? body : JSON.stringify(body),
@@ -51,7 +48,7 @@ function acceptedFetch(calls: Array<{ input: RequestInfo | URL; init?: RequestIn
 
 test.beforeEach(() => resetWhatsAppRuntimeForTests());
 
-test("GET exposes safe Meta settings, defaults, and the send-key requirement", async () => {
+test("GET exposes safe Meta settings and defaults", async () => {
   const response = await handleWhatsAppGet(env);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "no-store");
@@ -59,7 +56,6 @@ test("GET exposes safe Meta settings, defaults, and the send-key requirement", a
   assert.deepEqual(body, {
     configured: true,
     provider: "Meta",
-    requiresSendKey: true,
     webhookConfigured: true,
     tokenUpdatable: false,
     recipientLabel: "WhatsApp ending in •••• 4567",
@@ -70,8 +66,7 @@ test("GET exposes safe Meta settings, defaults, and the send-key requirement", a
   const serialized = JSON.stringify(body);
   assert.equal(serialized.includes(env.META_WHATSAPP_ACCESS_TOKEN), false);
   assert.equal(serialized.includes(env.META_WHATSAPP_PHONE_NUMBER_ID), false);
-  assert.equal(serialized.includes(sendKey), false);
-  assert.deepEqual(await (await handleWhatsAppGet({})).json(), { configured: false, provider: "Meta", requiresSendKey: true, webhookConfigured: false, tokenUpdatable: false });
+  assert.deepEqual(await (await handleWhatsAppGet({})).json(), { configured: false, provider: "Meta", webhookConfigured: false, tokenUpdatable: false });
 });
 
 const storeEnv = { ...env, KV_REST_API_URL: "https://store.example", KV_REST_API_TOKEN: "store-token" };
@@ -143,28 +138,9 @@ test("missing or invalid provider configuration fails before any Meta fetch", as
   assert.equal(calls, 0);
 });
 
-test("missing send-key configuration fails closed before provider access", async () => {
-  let calls = 0;
-  for (const invalidKey of [undefined, "x".repeat(31), "x".repeat(257), `${"x".repeat(31)} `]) {
-    resetWhatsAppRuntimeForTests();
-    const response = await handleWhatsAppPost(request(alertPayload), {
-      env: { ...env, META_WHATSAPP_SEND_KEY: invalidKey },
-      fetch: async () => { calls += 1; return new Response(); },
-    });
-    assert.equal(response.status, 503);
-    assert.deepEqual(await response.json(), { error: "WhatsApp sending is not configured." });
-  }
-  assert.equal(calls, 0);
-});
-
-test("same-origin, content type, send-key, request shape and size guards are preserved", async () => {
+test("same-origin, content type, request shape and size guards are preserved", async () => {
   const wrongOrigin = await handleWhatsAppPost(request(alertPayload, { Origin: "https://evil.example" }), { env });
   assert.equal(wrongOrigin.status, 403);
-  const wrongKey = await handleWhatsAppPost(request(alertPayload, { "X-KeeTrack-Send-Key": "wrong-key" }), { env, fetch: async () => { throw new Error("provider must not run"); } });
-  assert.equal(wrongKey.status, 401);
-  assert.deepEqual(await wrongKey.json(), { error: "WhatsApp send key was not accepted." });
-  const missingKey = await handleWhatsAppPost(request(alertPayload, { "X-KeeTrack-Send-Key": "" }), { env, fetch: async () => { throw new Error("provider must not run"); } });
-  assert.equal(missingKey.status, 401);
   const wrongType = await handleWhatsAppPost(request(alertPayload, { "Content-Type": "text/plain" }), { env });
   assert.equal(wrongType.status, 415);
   const extraField = await handleWhatsAppPost(request({ ...alertPayload, owner: "private" }), { env });
@@ -200,7 +176,6 @@ test("same-origin uses the actual Host header when Next normalizes Request.url",
       Origin: "http://127.0.0.1:3001",
       Host: "127.0.0.1:3001",
       "Content-Type": "application/json",
-      "X-KeeTrack-Send-Key": sendKey,
     },
     body: JSON.stringify({ ...alertPayload, alertId: "host-header" }),
   });
@@ -214,7 +189,6 @@ test("same-origin uses the actual Host header when Next normalizes Request.url",
       Origin: "http://localhost:3001",
       Host: "127.0.0.1:3001",
       "Content-Type": "application/json",
-      "X-KeeTrack-Send-Key": sendKey,
     },
     body: JSON.stringify({ ...alertPayload, alertId: "host-header" }),
   });
