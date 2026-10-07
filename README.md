@@ -1,6 +1,6 @@
 # KeeTrack demo
 
-KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS and a Twilio WhatsApp trial are available only for explicitly requested single-alert actions; there is no database or background messaging integration.
+KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS and Meta WhatsApp Cloud API are available only for explicitly requested single-alert actions; there is no database or background messaging integration.
 
 ## Setup
 
@@ -12,7 +12,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` or the Twilio variables to the browser. EmailJS uses the three `NEXT_PUBLIC_EMAILJS_*` values; the WhatsApp trial requires all five `TWILIO_*` values in the server environment. Leave either set of values unset to keep that channel disabled.
+The token secret must be at least 32 characters. `NEXT_PUBLIC_APP_URL` is used to build QR verification URLs; when omitted in development, the request origin is used. Never expose `DEMO_CERT_TOKEN_SECRET` or the Meta variables to the browser. EmailJS uses the three `NEXT_PUBLIC_EMAILJS_*` values; outbound WhatsApp requires `META_WHATSAPP_ACCESS_TOKEN`, `META_WHATSAPP_PHONE_NUMBER_ID`, `META_WHATSAPP_TO` and the secure 32+ character `META_WHATSAPP_SEND_KEY` in the server environment. `META_WHATSAPP_TEMPLATE_NAME`, `META_WHATSAPP_TEMPLATE_LANGUAGE` and `META_GRAPH_API_VERSION` have safe defaults. Leave the channel values unset to keep WhatsApp disabled.
 
 Run the focused checks with:
 
@@ -29,7 +29,7 @@ npm run build
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.
 5. On Alerts, an Admin, Engineer or Reviewer can click **Send email** on one alert. The EmailJS template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KeeTrack sends only when you click and has no automatic or bulk send action.
-6. Open **Demo Controls → WhatsApp trial** to check configuration and the sample message. Reconnect the recipient in the Twilio trial console, then click **Send WhatsApp test** on one alert. No demo access key is required. The message is always the fixed system-downtime sample; the selected alert is used only to mark local state.
+6. Open **Demo Controls → WhatsApp Cloud API** to check the server-selected template and masked recipient. On Alerts, enter the private operator key and click **Send WhatsApp alert** on one alert. KeeTrack sends only the five approved alert details and records local API acceptance; delivery remains unconfirmed.
 7. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
 Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [github.com/Kuroshio-AI/keetrack](https://github.com/Kuroshio-AI/keetrack).
@@ -54,10 +54,32 @@ EmailJS uses the browser REST endpoint only after a user clicks **Send email** o
 
 The provider template is versioned at [`docs/emailjs-template.html`](docs/emailjs-template.html). Keep its settings as follows: subject `[KeeTrack Demo] {{event}} — {{asset_ref}}`, fixed To and Reply-To `devops@kuroshioai.com`, fixed CC `noufal@kuroshioai.com`, From Name `KeeTrack Demo`, the default EmailJS sender, blank BCC, and no auto-reply. Keep the template body limited to the allowlisted fields above.
 
-## Trial WhatsApp
+## WhatsApp Cloud API
 
-The WhatsApp action posts same-origin `alertId` JSON to `/api/alerts/whatsapp`; the browser never chooses the recipient, sender, template, message body or private register details. The server requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_WHATSAPP_TO` and `TWILIO_WHATSAPP_CONTENT_SID`. Keep these values in the server environment, never in browser code or the repository. Demo Controls shows configuration status, the masked recipient and the fixed sample. There is no separate demo access key or browser authorization; anyone with access to this public demo can request the fixed message to the configured recipient.
+The WhatsApp action is a manual, one-alert operation. The browser posts a same-origin JSON allowlist to `/api/alerts/whatsapp` with `alertId`, `event`, `assetRef`, `site`, `severity` and `dueDate`. The browser derives those values from the selected alert and its matching local record, sends no owner, notes, evidence, contact list or arbitrary message body, and never chooses the recipient, phone number ID, template or Meta access token. Missing asset, site or due date values are sent as `Not applicable`.
 
-This specific trial requires reconnecting the WhatsApp recipient in the Twilio console for each console session and supports only predefined template content.
+The server requires `META_WHATSAPP_ACCESS_TOKEN`, `META_WHATSAPP_PHONE_NUMBER_ID`, `META_WHATSAPP_TO` and `META_WHATSAPP_SEND_KEY`. The send key is a secure production-only operator secret of at least 32 characters. It is supplied in the `X-KeeTrack-Send-Key` header, compared in constant time, never returned by GET, and held only in React state while the Alerts page is open. It must never be the Meta access token or app secret. `META_WHATSAPP_TEMPLATE_NAME` defaults to `keetrack_alert_demo`, `META_WHATSAPP_TEMPLATE_LANGUAGE` defaults to `en_US`, and `META_GRAPH_API_VERSION` defaults to `v26.0`. Keep all of these values in the server environment, never in browser code or the repository.
 
-Every trial send uses this generic fictional sample: `Alert: System downtime detected. Engineers notified. ETA to resolution: 2 hours. Reply STATUS for updates. Test message from Twilio.` A successful Twilio acceptance is not delivery confirmation. Network, timeout and malformed-provider responses say to check Twilio before retrying; the action never retries automatically. Accepted and ambiguous results are held in a bounded warm-instance replay cache for 10 minutes, with a three-second per-instance cooldown and a maximum of 500 alert keys. Cold starts or multiple server instances can reset or bypass those in-memory protections; they are not authentication or a global quota limit. Add authentication and shared rate limiting before expanding access or recipients. There are no scheduled, background or bulk sends.
+To replace an expired access token without a redeploy, connect Upstash for Redis from the Vercel Marketplace so the project has `KV_REST_API_URL` and `KV_REST_API_TOKEN`. Demo Controls then shows a **Meta access token** box. Anyone can submit it, but a token is saved only after Meta confirms it can use `META_WHATSAPP_PHONE_NUMBER_ID`, so only someone who already controls that number can change it. The saved token lives in Redis, overrides `META_WHATSAPP_ACCESS_TOKEN`, and is never returned to the browser.
+
+The approved template must have these five body text parameters in this exact order:
+
+```text
+KeeTrack demo alert
+Event: {{1}}
+Asset: {{2}}
+Site: {{3}}
+Severity: {{4}}
+Due date: {{5}}
+View details: https://keetrack.vercel.app/alerts
+```
+
+The template name, language, parameter order and approved category are ultimately controlled by Meta. A successful response with a valid WhatsApp message ID means Meta accepted the API request; it does not confirm delivery. Network, timeout and malformed-provider responses remain unconfirmed and are cached so the browser does not automatically retry an ambiguous request. 4xx responses are redacted as provider rejection. Accepted and ambiguous results use a bounded warm-instance replay cache for 10 minutes, with a three-second per-instance cooldown and a maximum of 500 alert keys. These module-local guards are not full customer authentication or a durable global quota; cold starts and multiple instances can reset or bypass them. There are no scheduled, background or bulk sends.
+
+For production, complete the local Meta app and business onboarding/migration before deployment and use a separate production sender. Keep the user's existing WhatsApp Business phone app number outside this migration. The deployed Meta app must be published, have the WhatsApp Business Account connected, and subscribe to the `messages` field for webhook callbacks. Configure the fixed recipient and approved `keetrack_alert_demo` template in the production server environment.
+
+## WhatsApp webhook
+
+The optional `/api/webhooks/whatsapp` route supports Meta's verification challenge and signed event callbacks. Set `META_APP_SECRET` and `META_WHATSAPP_VERIFY_TOKEN` in the server environment, then configure that callback URL in the published Meta app. GET verification compares the token in constant time and returns the challenge as plain text. POST requests are accepted only with a valid `X-Hub-Signature-256` HMAC over the raw request bytes and a basic WhatsApp event envelope; unsigned callbacks are rejected.
+
+This demo authenticates and acknowledges valid callbacks only. It has no backend database: callback events are not persisted, do not trigger inbound replies or automatic messages, and are not used to mark local alerts delivered. Delivery remains unconfirmed in KeeTrack even when a webhook callback is received. The send key is a private key known to the demo operator, so this flow is suitable for the controlled demo and does not provide full customer authentication or durable global rate limiting.
