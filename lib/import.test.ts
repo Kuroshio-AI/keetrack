@@ -43,7 +43,7 @@ test("sample 2 exposes renewal deadlines and excludes the retired record", () =>
   const state = importRows(createInitialState(demoDate), sampleRows(demoDate, "2"), "Admin", "2026-02-15T12:00:00.000Z");
   const openDeadlines = state.alerts.filter((alert) => alert.status === "open" && alert.type === "deadline");
   assert.equal(openDeadlines.length, 7);
-  assert.equal(openDeadlines.filter((alert) => alert.assetRef === "ANC-201").length, 3);
+  assert.equal(openDeadlines.filter((alert) => alert.assetRef === "RAS-201").length, 3);
   assert.equal(openDeadlines.filter((alert) => alert.assetRef === "LIC-202").length, 1);
   assert.equal(openDeadlines.filter((alert) => alert.assetRef === "HAR-203").length, 1);
   assert.equal(openDeadlines.filter((alert) => alert.assetRef === "SRL-204").length, 2);
@@ -57,18 +57,18 @@ test("sample 2 exposes renewal deadlines and excludes the retired record", () =>
 test("sample 2 renewal supersedes the expired certificate and keeps retirement due", () => {
   const demoDate = "2026-02-15";
   const imported = importRows(createInitialState(demoDate), sampleRows(demoDate, "2"), "Admin", "2026-02-15T12:00:00.000Z");
-  const record = imported.records.find((item) => item.assetRef === "ANC-201")!;
+  const record = imported.records.find((item) => item.assetRef === "RAS-201")!;
   const oldCertificateId = record.certificates[0].id;
   const created = createInspection(imported, record.id, "Admin", "2026-02-15T13:00:00.000Z");
   const passed = created.inspection.checklist.map((item) => ({ ...item, result: "pass" as const }));
   const ready = updateInspection(created.state, created.inspection.id, { checklist: passed }, "2026-02-15T13:01:00.000Z");
   const submitted = submitInspection(ready, created.inspection.id, "2026-02-15T13:02:00.000Z");
   const renewed = approveInspection(submitted, created.inspection.id, addDays(demoDate, 365), "Admin", "2026-02-15T13:03:00.000Z");
-  const renewedRecord = renewed.records.find((item) => item.assetRef === "ANC-201")!;
+  const renewedRecord = renewed.records.find((item) => item.assetRef === "RAS-201")!;
   assert.equal(renewedRecord.retirementDueDate, addDays(demoDate, 30));
   assert.equal(renewedRecord.certificates.find((certificate) => certificate.id === oldCertificateId)?.status, "Superseded");
-  assert.equal(renewed.alerts.some((alert) => alert.assetRef === "ANC-201" && alert.event === "Certificate superseded"), true);
-  assert.equal(renewed.alerts.some((alert) => alert.assetRef === "ANC-201" && alert.event === "Retirement due" && alert.status === "open" && alert.dueDate === addDays(demoDate, 30)), true);
+  assert.equal(renewed.alerts.some((alert) => alert.assetRef === "RAS-201" && alert.event === "Certificate superseded"), true);
+  assert.equal(renewed.alerts.some((alert) => alert.assetRef === "RAS-201" && alert.event === "Retirement due" && alert.status === "open" && alert.dueDate === addDays(demoDate, 30)), true);
 });
 
 test("import rejects malformed layouts, dates, formulas and incomplete certificates", () => {
