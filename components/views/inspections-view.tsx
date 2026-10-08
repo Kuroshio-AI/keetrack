@@ -122,9 +122,14 @@ export function InspectionsView() {
       </> : <>
         <div className="eyebrow">{phone.assetRef} · Field inspection</div>
         <h2 id="phone-title" className="mt-1 text-lg font-bold text-navy">Inspect on your phone</h2>
-        <img src={phone.qr} alt="QR code that opens this inspection on a phone" className="mx-auto mt-3 size-56" />
-        <p className="flex items-center justify-center gap-2 text-sm font-semibold text-navy" aria-live="polite"><span className={`size-2 rounded-full ${phone.status === "opened" ? "bg-success" : "bg-warning motion-safe:animate-pulse"}`} aria-hidden="true" />{phone.status === "opened" ? "Phone connected · waiting for submit" : "Scan with your phone camera"}</p>
-        <p className="mt-1 text-xs text-slate-500">The link works once and expires in 30 minutes.</p>
+        {/* Once a phone holds the link, hide the QR so nobody else scans it; the server rejects other phones anyway. */}
+        {phone.status === "opened" ? <div className="animate-rise mx-auto mt-3 flex size-56 flex-col items-center justify-center gap-2 rounded-xl bg-paper px-5">
+          <span className="grid size-14 place-items-center rounded-full bg-success/10 text-success"><Smartphone className="size-6" aria-hidden="true" /></span>
+          <div className="mt-1 font-bold text-navy">Inspection in progress</div>
+          <p className="text-xs leading-relaxed text-slate-600">A phone has opened this inspection. The link is locked to that phone.</p>
+        </div> : <img src={phone.qr} alt="QR code that opens this inspection on a phone" className="mx-auto mt-3 size-56" />}
+        <p className="flex items-center justify-center gap-2 text-sm font-semibold text-navy" aria-live="polite"><span className={`size-2 rounded-full ${phone.status === "opened" ? "bg-success" : "bg-warning motion-safe:animate-pulse"}`} aria-hidden="true" />{phone.status === "opened" ? "Waiting for the phone to submit" : "Scan with your phone camera"}</p>
+        <p className="mt-1 text-xs text-slate-500">{phone.status === "opened" ? "Wrong phone? Cancel and create a new QR." : "Only the first phone to scan can use it · expires in 30 minutes."}</p>
         {phoneError && <p className="mt-3 rounded-lg bg-[#fff3f3] p-2 text-xs text-danger" role="alert">{phoneError}</p>}
         <Button variant="ghost" size="sm" className="mt-4" onClick={() => phoneDialog.current?.close()}>Cancel</Button>
       </>}

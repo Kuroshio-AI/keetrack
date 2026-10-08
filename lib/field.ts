@@ -8,6 +8,8 @@ export type FieldSession = { job: FieldJob; status: "waiting" | "opened" | "subm
 export const SESSION_TTL_SECONDS = 30 * 60;
 export const MAX_PHONE_PHOTOS = 3;
 export const sessionKey = (id: string) => `field:${id}`;
+// Set once, atomically, by the first phone to open the link; every later request must present it.
+export const claimKey = (id: string) => `field:${id}:claim`;
 export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const isText = (value: unknown, max = 160): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= max && !/[<>\u0000-\u001f]/.test(value);

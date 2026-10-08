@@ -57,6 +57,8 @@ export function FieldInspection({ id }: { id: string }) {
   const [job, setJob] = useState<FieldJob>();
   const [screen, setScreen] = useState<"loading" | "form" | "sent" | "closed">("loading");
   const [message, setMessage] = useState("");
+  const [closedTitle, setClosedTitle] = useState("Link unavailable");
+  const [claim, setClaim] = useState<string>();
   const [results, setResults] = useState<Record<string, FieldResult["results"][string]>>({});
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -70,10 +72,16 @@ export function FieldInspection({ id }: { id: string }) {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch(`/api/field/${id}?phone=1`, { cache: "no-store" });
-        const body = await response.json() as { job?: FieldJob; status?: string; error?: string };
+        // The claim survives a reload (or the camera app evicting the tab), so this phone keeps its lock.
+        const claimStore = `keetrack-field-claim:${id}`;
+        let saved: string | null = null;
+        try { saved = localStorage.getItem(claimStore); } catch { /* private mode: the claim lives in memory only */ }
+        const response = await fetch(`/api/field/${id}?phone=1${saved ? `&claim=${encodeURIComponent(saved)}` : ""}`, { cache: "no-store" });
+        const body = await response.json() as { job?: FieldJob; status?: string; claim?: string; error?: string };
+        if (response.status === 409) { setClosedTitle("Already in progress"); setMessage(body.error ?? "This inspection is already in progress on another phone."); setScreen("closed"); return; }
         if (!response.ok || !body.job) { setMessage(body.error ?? "This link could not be opened."); setScreen("closed"); return; }
         if (body.status === "submitted") { setMessage("This inspection was already submitted."); setScreen("closed"); return; }
+        if (body.claim) { setClaim(body.claim); try { localStorage.setItem(claimStore, body.claim); } catch { /* memory only */ } }
         setJob(body.job);
         setScreen("form");
       } catch { setMessage("No connection. Check your signal and reload this page."); setScreen("closed"); }
@@ -94,7 +102,7 @@ export function FieldInspection({ id }: { id: string }) {
   async function submit() {
     setMessage(""); setSending(true);
     try {
-      const response = await fetch(`/api/field/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ results, notes, photos, signature }) });
+      const response = await fetch(`/api/field/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ claim, results, notes, photos, signature }) });
       const body = await response.json() as { error?: string };
       if (!response.ok) { setMessage(body.error ?? "Could not send. Try again."); return; }
       setScreen("sent");
@@ -107,7 +115,7 @@ export function FieldInspection({ id }: { id: string }) {
     <div className="mx-auto max-w-md">
       <div className="flex items-center gap-3"><img src="/kee-safety-logo.png" alt="Kee Safety" className="size-10" /><div><div className="text-[11px] font-bold uppercase tracking-[.18em] text-[#1684ab]">KeeTrack · Field inspection</div>{job && <div className="text-xs text-slate-500">Inspector: {job.inspector}</div>}</div></div>
       {screen === "loading" && <p className="mt-10 text-center text-sm text-slate-500" aria-live="polite">Opening inspection…</p>}
-      {screen === "closed" && <div className="animate-rise mt-8 rounded-2xl border border-line bg-white p-6 text-center shadow-panel"><h1 className="text-xl font-bold text-navy">Link unavailable</h1><p className="mt-2 text-sm text-slate-600" role="alert">{message}</p></div>}
+      {screen === "closed" && <div className="animate-rise mt-8 rounded-2xl border border-line bg-white p-6 text-center shadow-panel"><h1 className="text-xl font-bold text-navy">{closedTitle}</h1><p className="mt-2 text-sm text-slate-600" role="alert">{message}</p></div>}
       {screen === "sent" && job && <div className="animate-rise mt-8 rounded-2xl border border-line bg-white p-8 text-center shadow-panel">
         <span className="pop-in mx-auto grid size-20 place-items-center rounded-full bg-success text-white ring-8 ring-success/10"><Check className="draw-check size-10" strokeWidth={3} aria-hidden="true" /></span>
         <h1 className="mt-5 text-2xl font-bold tracking-tight text-navy">Sent for review</h1>
