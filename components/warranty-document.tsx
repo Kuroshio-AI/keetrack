@@ -3,8 +3,8 @@ import { formatDate, formatLocalDate } from "@/lib/utils";
 
 export type WarrantyPrint = { warrantyNo: string; product: string; assetRef: string; serialNo?: string; site: string; owner: string; warrantyDate: string; validUntil: string; status: "Valid" | "Expired"; asOf: string; qr: string };
 
-export function Signature({ label, name, date }: { label: string; name: string; date?: string }) {
-  return <div><div className="h-12 border-b border-[#0b3151]/40" /><div className="mt-2 text-sm font-semibold text-navy">{name}</div><div className="text-xs text-slate-500">{label}{date ? ` · ${formatLocalDate(date)}` : ""}</div></div>;
+export function Signature({ label, name, date, image }: { label: string; name: string; date?: string; image?: string }) {
+  return <div><div className="h-12 border-b border-[#0b3151]/40">{image && <img src={image} alt="" className="h-full" />}</div><div className="mt-2 text-sm font-semibold text-navy">{name}</div><div className="text-xs text-slate-500">{label}{date ? ` · ${formatLocalDate(date)}` : ""}</div></div>;
 }
 
 // Each page is sized to one A4 sheet so the footer sits at the bottom of both printed pages.

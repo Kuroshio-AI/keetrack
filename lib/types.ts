@@ -85,6 +85,8 @@ export type Inspection = {
   inspector: string;
   checklist: ChecklistItem[];
   photos?: InspectionPhoto[];
+  // PNG drawn on the phone hand-off page; shown on the certificate's "Inspected by" line.
+  signature?: string;
   notes: string;
   status: InspectionStatus;
   reviewerComment?: string;

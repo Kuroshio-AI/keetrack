@@ -99,6 +99,7 @@ export function validateStoredState(value: unknown): value is AppState {
       && ["Draft", "Submitted", "Returned", "Approved", "Issued"].includes(inspection.status as string)
       && Array.isArray(inspection.checklist) && inspection.checklist.every((check) => Boolean(check && typeof check === "object" && isText((check as ChecklistItem).id) && isText((check as ChecklistItem).label) && ["pass", "fail", "na", "pending"].includes((check as ChecklistItem).result)))
       && (!inspection.photos || (Array.isArray(inspection.photos) && inspection.photos.every((photo) => Boolean(photo && typeof photo === "object" && isText(photo.id) && isText(photo.name) && isText(photo.type) && isText(photo.dataUrl) && typeof photo.bytes === "number" && photo.bytes <= 200 * 1024))))
+      && (inspection.signature === undefined || (typeof inspection.signature === "string" && inspection.signature.startsWith("data:image/png;base64,") && inspection.signature.length <= 90_000))
       && isText(inspection.notes) && isTimestamp(inspection.createdAt) && isTimestamp(inspection.updatedAt) && isOptionalDate(inspection.nextInspectionDate)
       && (inspection.submittedAt === undefined || isTimestamp(inspection.submittedAt)) && (inspection.reviewedAt === undefined || isTimestamp(inspection.reviewedAt));
   };
@@ -341,7 +342,7 @@ export function createInspection(state: AppState, assetId: string, actor = state
   return { state: { ...state, inspections: [inspection, ...state.inspections] }, inspection };
 }
 
-export function updateInspection(state: AppState, id: string, patch: Partial<Pick<Inspection, "checklist" | "notes" | "photos">>, timestamp = nowIso()): AppState {
+export function updateInspection(state: AppState, id: string, patch: Partial<Pick<Inspection, "checklist" | "notes" | "photos" | "signature">>, timestamp = nowIso()): AppState {
   if (patch.photos && (patch.photos.some((photo) => photo.bytes > 200 * 1024) || patch.photos.reduce((total, photo) => total + photo.bytes, 0) > 1024 * 1024)) throw new Error("Evidence exceeds the local photo limit.");
   return { ...state, inspections: state.inspections.map((item) => item.id === id && (item.status === "Draft" || item.status === "Returned") ? { ...item, ...patch, updatedAt: timestamp } : item) };
 }

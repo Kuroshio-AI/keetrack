@@ -17,7 +17,7 @@ function snapshot(record: AssetRecord, certificate: Certificate, demoDate: strin
   return { certificateNo: certificate.number, assetRef: record.assetRef, assetType: record.assetType, issuedDate: certificate.issuedDate, expiryDate: certificate.expiryDate, status: effectiveCertificateStatus(certificate, demoDate) };
 }
 type QrSnapshot = { image: string; url: string; key: string; createdAt: number };
-type PrintSnapshot = ReturnType<typeof snapshot> & { result: string; qr: string; site: string; serialNo?: string; inspector?: string; inspectedAt?: string; approvedAt?: string; nextInspection?: string };
+type PrintSnapshot = ReturnType<typeof snapshot> & { result: string; qr: string; site: string; serialNo?: string; inspector?: string; inspectorSignature?: string; inspectedAt?: string; approvedAt?: string; nextInspection?: string };
 
 async function qrFor(payload: object): Promise<{ image: string; url: string }> {
   const response = await fetch("/api/certificates/demo-token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
@@ -84,7 +84,7 @@ export function CertificatesView() {
   async function print(record: AssetRecord, certificate: Certificate) {
     const fresh = await makeQr(record, certificate);
     const inspection = state.inspections.find((item) => item.id === certificate.sourceInspectionId);
-    if (fresh) setPrinting({ kind: "certificate", ...snapshot(record, certificate, state.demoDate), result: certificate.result, qr: fresh.image, site: record.site, serialNo: record.serialNo, inspector: inspection?.inspector, inspectedAt: inspection?.submittedAt, approvedAt: inspection?.reviewedAt, nextInspection: inspection?.nextInspectionDate ?? record.inspectionDueDate });
+    if (fresh) setPrinting({ kind: "certificate", ...snapshot(record, certificate, state.demoDate), result: certificate.result, qr: fresh.image, site: record.site, serialNo: record.serialNo, inspector: inspection?.inspector, inspectorSignature: inspection?.signature, inspectedAt: inspection?.submittedAt, approvedAt: inspection?.reviewedAt, nextInspection: inspection?.nextInspectionDate ?? record.inspectionDueDate });
   }
 
   // One warranty per asset, dated from its first certificate so renewal inspections don't restart the 5 years.
@@ -141,7 +141,7 @@ export function CertificatesView() {
         </dl>
         <div className="mt-8 flex flex-col gap-8 border-t border-line pt-6 sm:flex-row sm:items-end">
           <div className="shrink-0 text-center"><img src={printing.qr} alt="Certificate verification QR" className="mx-auto size-36" /><div className="eyebrow mt-1">Scan to verify</div></div>
-          <div className="grid flex-1 gap-8 sm:grid-cols-2"><Signature label="Inspected by" name={printing.inspector ?? "Not recorded"} date={printing.inspectedAt} /><Signature label="Approved by" name="Authorised reviewer" date={printing.approvedAt} /></div>
+          <div className="grid flex-1 gap-8 sm:grid-cols-2"><Signature label="Inspected by" name={printing.inspector ?? "Not recorded"} date={printing.inspectedAt} image={printing.inspectorSignature} /><Signature label="Approved by" name="Authorised reviewer" date={printing.approvedAt} /></div>
         </div>
         <p className="mt-6 border-t border-line pt-4 text-xs leading-relaxed text-slate-500">Demo certificate · fictional data. QR verification is a signed snapshot valid for 24 hours; it is not live certification.</p>
       </div></div>}
