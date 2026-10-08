@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { ExternalLink, FileBadge, Printer, QrCode, ShieldCheck } from "lucide-react";
+import { Check, Copy, ExternalLink, FileBadge, Printer, QrCode, ShieldCheck } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,8 +36,20 @@ export function CertificatesView() {
   const [printing, setPrinting] = useState<({ kind: "certificate" } & PrintSnapshot) | ({ kind: "warranty" } & WarrantyPrint)>();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (printing) dialog.current?.showModal(); }, [printing]);
+  // The QR opens in a dialog so a card with a QR stays the same size as its neighbours.
+  const [qrOpen, setQrOpen] = useState<string>();
+  const [copied, setCopied] = useState(false);
+  const qrDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (qrOpen) qrDialog.current?.showModal(); }, [qrOpen]);
   const canChange = state.role === "Admin" || state.role === "Reviewer";
   const certificates = state.records.flatMap((record) => record.certificates.map((certificate) => ({ record, certificate })));
+  const shown = qrOpen ? qr[qrOpen] : undefined;
+  const opened = certificates.find(({ certificate }) => certificate.id === qrOpen);
+
+  function currentQr(record: AssetRecord, certificate: Certificate) {
+    const cached = qr[certificate.id];
+    return cached?.key === JSON.stringify(snapshot(record, certificate, state.demoDate)) && Date.now() - cached.createdAt < 24 * 60 * 60 * 1000 ? cached : undefined;
+  }
 
   async function makeQr(record: AssetRecord, certificate: Certificate): Promise<QrSnapshot | undefined> {
     setError(""); setBusy(certificate.id);
@@ -52,6 +64,15 @@ export function CertificatesView() {
       return result;
     } catch (reason) { setError(reason instanceof Error ? reason.message : "QR generation failed. Try again."); }
     finally { setBusy(undefined); }
+  }
+
+  async function showQr(record: AssetRecord, certificate: Certificate) {
+    if (currentQr(record, certificate) ?? await makeQr(record, certificate)) setQrOpen(certificate.id);
+  }
+
+  async function copyLink(url: string) {
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+    catch { setError("Copy failed. Use Open verification instead."); }
   }
 
   // Superseding happens automatically when a newer certificate is approved, so revoke is the only manual status change.
@@ -83,26 +104,32 @@ export function CertificatesView() {
     <Card><CardHeader><div className="eyebrow">Certificate register</div><CardTitle>{certificates.length} certificate{certificates.length === 1 ? "" : "s"}</CardTitle></CardHeader>
       <CardContent>{certificates.length ? <div className="grid gap-4 xl:grid-cols-2">{certificates.map(({ record, certificate }) => {
         const details = snapshot(record, certificate, state.demoDate);
-        const cached = qr[certificate.id];
-        const currentQr = cached?.key === JSON.stringify(details) && Date.now() - cached.createdAt < 24 * 60 * 60 * 1000 ? cached : undefined;
-        // Keep the old QR on screen while its replacement generates; hiding it shrinks the page and jumps the scroll to the top.
-        const shownQr = currentQr ?? (busy === certificate.id ? cached : undefined);
         return <div key={certificate.id} className="min-w-0 rounded-xl border border-line bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="eyebrow">{record.assetRef} · {record.site}</div><h3 className="mt-1 break-all text-lg font-bold text-navy">{certificate.number}</h3><p className="mt-1 text-sm text-slate-500">{record.assetType}</p></div><Badge variant={details.status === "Valid" ? "success" : details.status === "Expired" ? "warning" : "danger"}>{details.status}</Badge></div>
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-paper p-3 text-sm"><div><div className="eyebrow">Issued</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.issuedDate)}</div></div><div><div className="eyebrow">Expires</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.expiryDate)}</div></div></div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void print(record, certificate)}><Printer />Print</Button>
             <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void printWarranty(record, certificate)}><FileBadge />{busy === `warranty:${certificate.id}` ? "Preparing…" : "Warranty"}</Button>
-            <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => void makeQr(record, certificate)}><QrCode />{busy === certificate.id ? "Generating…" : currentQr ? "Refresh QR" : "Create QR"}</Button>
-            {currentQr && <Button asChild variant="ghost" size="sm"><a href={currentQr.url} target="_blank" rel="noreferrer"><ExternalLink />Open verification</a></Button>}
+            <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => void showQr(record, certificate)}><QrCode />{busy === certificate.id ? "Generating…" : currentQr(record, certificate) ? "Show QR" : "Create QR"}</Button>
             {canChange && (details.status === "Valid" || details.status === "Expired") && <Button variant="ghost" size="sm" className="text-danger" disabled={Boolean(busy)} onClick={() => revoke(record, certificate)}>Revoke</Button>}
           </div>
-          {shownQr && <div className="mt-4 flex flex-col items-center gap-3 rounded-lg border border-line p-3 sm:flex-row"><img src={shownQr.image} alt={`QR code for ${certificate.number}`} className={`size-48 shrink-0 transition-opacity ${currentQr ? "" : "opacity-30"}`} /><p className="text-xs leading-relaxed text-slate-500" aria-live="polite">{currentQr ? `Signed demo snapshot: ${details.status}. Expires in 24 hours. Old links keep their original status until expiry.` : "Updating QR…"}</p></div>}
         </div>;
       })}</div> : <div className="rounded-lg border border-dashed border-line px-4 py-14 text-center"><ShieldCheck className="mx-auto size-9 text-[#b8cedc]" /><p className="mt-3 text-sm text-slate-500">Import a supplied certificate or approve a passed inspection to begin.</p></div>}
         {error && <p className="mt-4 rounded-lg bg-[#fff3f3] p-3 text-sm text-danger" role="alert">{error}</p>}
       </CardContent>
     </Card>
+    {shown && opened && createPortal(<dialog ref={qrDialog} aria-labelledby="qr-title" onClose={() => { setQrOpen(undefined); setCopied(false); }} className="animate-rise fixed inset-0 m-auto w-[min(92vw,380px)] rounded-2xl bg-white p-6 text-center backdrop:bg-black/50">
+      <div className="eyebrow">{opened.record.assetRef} · Scan to verify</div>
+      <h2 id="qr-title" className="mt-1 break-all text-lg font-bold text-navy">{opened.certificate.number}</h2>
+      <img src={shown.image} alt={`QR code for ${opened.certificate.number}`} className="mx-auto mt-3 size-64" />
+      <p className="text-xs leading-relaxed text-slate-500">Signed demo snapshot: {effectiveCertificateStatus(opened.certificate, state.demoDate)}. Expires in 24 hours. Old links keep their original status until expiry.</p>
+      {error && <p className="mt-3 rounded-lg bg-[#fff3f3] p-2 text-xs text-danger" role="alert">{error}</p>}
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        <Button asChild size="sm"><a href={shown.url} target="_blank" rel="noreferrer"><ExternalLink />Open verification</a></Button>
+        <Button variant="outline" size="sm" onClick={() => void copyLink(shown.url)}>{copied ? <Check /> : <Copy />}<span aria-live="polite">{copied ? "Copied" : "Copy link"}</span></Button>
+        <Button variant="ghost" size="sm" onClick={() => qrDialog.current?.close()}>Close</Button>
+      </div>
+    </dialog>, document.body)}
     {printing && createPortal(<dialog ref={dialog} aria-label={printing.kind === "warranty" ? "Warranty print preview" : "Certificate print preview"} onClose={() => setPrinting(undefined)} className="certificate-print-area animate-rise fixed inset-0 m-auto max-h-[95vh] w-[min(95vw,850px)] overflow-auto bg-white p-5 backdrop:bg-black/50 sm:p-10">
       <div className="print-hidden mb-5 flex justify-end gap-2"><Button onClick={() => window.print()}>Print / Save PDF</Button><Button variant="outline" onClick={() => dialog.current?.close()}>Close</Button></div>
       {printing.kind === "warranty" ? <WarrantyDocument {...printing} /> : <div className="mx-auto border-[8px] border-[#0b3151] p-1"><div className="border border-[#b8cedc] p-5 sm:p-10">
