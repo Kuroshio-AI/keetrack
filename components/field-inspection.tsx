@@ -14,6 +14,8 @@ type Photo = FieldResult["photos"][number];
 function SignaturePad({ onChange }: { onChange: (dataUrl?: string) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
+  // A tap or a stroke the browser swallowed leaves the canvas blank; only real ink counts as signed.
+  const inked = useRef(false);
   function point(event: PointerEvent<HTMLCanvasElement>): [number, number] {
     const box = event.currentTarget.getBoundingClientRect();
     return [(event.clientX - box.left) * event.currentTarget.width / box.width, (event.clientY - box.top) * event.currentTarget.height / box.height];
@@ -32,15 +34,17 @@ function SignaturePad({ onChange }: { onChange: (dataUrl?: string) => void }) {
     const context = event.currentTarget.getContext("2d");
     context?.lineTo(...point(event));
     context?.stroke();
+    inked.current = true;
   }
   function end(event: PointerEvent<HTMLCanvasElement>) {
     if (!drawing.current) return;
     drawing.current = false;
-    onChange(event.currentTarget.toDataURL("image/png"));
+    onChange(inked.current ? event.currentTarget.toDataURL("image/png") : undefined);
   }
   function clear() {
     const element = canvas.current;
     element?.getContext("2d")?.clearRect(0, 0, element.width, element.height);
+    inked.current = false;
     onChange(undefined);
   }
   return <div>
@@ -58,6 +62,10 @@ export function FieldInspection({ id }: { id: string }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [signature, setSignature] = useState<string>();
   const [sending, setSending] = useState(false);
+  const [zoom, setZoom] = useState(1);
+
+  // Chrome's "Desktop site" mode ignores the viewport tag and lays out 980px wide, shrinking this page to a sliver; scale it back to the screen.
+  useEffect(() => { if (navigator.maxTouchPoints > 0 && window.innerWidth > window.screen.width * 1.2) setZoom(window.innerWidth / window.screen.width); }, []);
 
   useEffect(() => {
     void (async () => {
@@ -95,7 +103,7 @@ export function FieldInspection({ id }: { id: string }) {
   }
 
   const ready = job && job.checklist.every((item) => results[item.id]) && signature;
-  return <main className="min-h-screen bg-[#f3f7f9] px-4 py-6">
+  return <main className="min-h-screen bg-[#f3f7f9] px-4 py-6" style={zoom === 1 ? undefined : { zoom }}>
     <div className="mx-auto max-w-md">
       <div className="flex items-center gap-3"><img src="/kee-safety-logo.png" alt="Kee Safety" className="size-10" /><div><div className="text-[11px] font-bold uppercase tracking-[.18em] text-[#1684ab]">KeeTrack · Field inspection</div>{job && <div className="text-xs text-slate-500">Inspector: {job.inspector}</div>}</div></div>
       {screen === "loading" && <p className="mt-10 text-center text-sm text-slate-500" aria-live="polite">Opening inspection…</p>}
