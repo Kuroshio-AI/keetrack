@@ -123,7 +123,7 @@ export function InspectionsView() {
         <div className="eyebrow">{phone.assetRef} · Field inspection</div>
         <h2 id="phone-title" className="mt-1 text-lg font-bold text-navy">Inspect on your phone</h2>
         {/* Once a phone holds the link, hide the QR so nobody else scans it; the server rejects other phones anyway. */}
-        {phone.status === "opened" ? <div className="animate-rise mx-auto mt-3 flex size-56 flex-col items-center justify-center gap-2 rounded-xl bg-paper px-5">
+        {phone.status === "opened" ? <div className="animate-rise mx-auto mt-3 flex size-56 flex-col items-center justify-center gap-2 px-2">
           <span className="grid size-14 place-items-center rounded-full bg-success/10 text-success"><Smartphone className="size-6" aria-hidden="true" /></span>
           <div className="mt-1 font-bold text-navy">Inspection in progress</div>
           <p className="text-xs leading-relaxed text-slate-600">A phone has opened this inspection. The link is locked to that phone.</p>
