@@ -57,8 +57,21 @@ export type Certificate = {
   tokenIssuedAt?: string;
 };
 
+// Typed in from the original warranty document; replaces the one derived from the first certificate.
+export type Warranty = {
+  number: string;
+  product: string;
+  warrantyDate: string;
+  years: number;
+  contractNo?: string;
+  project?: string;
+  scope?: string;
+  mainContractor?: string;
+};
+
 export type AssetRecord = RegisterRow & {
   id: string;
+  warranty?: Warranty;
   certificates: Certificate[];
   activity: Activity[];
   createdAt: string;

@@ -14,6 +14,7 @@ type AppContextValue = {
   setRole: (role: Role) => void;
   setDemoDate: (date: string) => void;
   clearOperationalData: () => boolean;
+  restore: (next: AppState) => boolean;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -51,9 +52,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setRole = useCallback((role: Role) => { update((current) => setCurrentRole(current, role)); }, [update]);
   const setDemoDate = useCallback((date: string) => { update((current) => setDate(current, date)); }, [update]);
-  const clearOperationalData = useCallback(() => {
+  // Replaces the whole workspace, even during storage recovery: used by Reset demo and Restore backup.
+  const restore = useCallback((next: AppState) => {
     try {
-      const next = createInitialState(todayString());
       const result = commitState(window.localStorage, next);
       if (!result.ok) { setSaveError(result.error); return false; }
       latestState.current = next;
@@ -63,8 +64,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return true;
     } catch { setSaveError("Browser storage is unavailable. Previous data is intact."); return false; }
   }, []);
+  const clearOperationalData = useCallback(() => restore(createInitialState(todayString())), [restore]);
 
-  const value = useMemo(() => ({ state, hydrated, storageWarning, saveError, update, setRole, setDemoDate, clearOperationalData }), [state, hydrated, storageWarning, saveError, update, setRole, setDemoDate, clearOperationalData]);
+  const value = useMemo(() => ({ state, hydrated, storageWarning, saveError, update, setRole, setDemoDate, clearOperationalData, restore }), [state, hydrated, storageWarning, saveError, update, setRole, setDemoDate, clearOperationalData, restore]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 

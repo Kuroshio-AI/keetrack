@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Activity, AlertTriangle, BarChart3, BellRing, BookOpenCheck, CalendarCheck, ChevronRight, ClipboardList, FileCheck2, Import, Menu, Settings2, ShieldCheck, X } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, BellRing, BookOpenCheck, CalendarCheck, ChevronRight, ClipboardList, FileBadge, FileCheck2, Import, Menu, Settings2, ShieldCheck, X } from "lucide-react";
 import { AppProvider, useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { RegisterView } from "@/components/views/register-view";
 import { InspectionsView } from "@/components/views/inspections-view";
 import { ApprovalsView } from "@/components/views/approvals-view";
 import { CertificatesView } from "@/components/views/certificates-view";
+import { WarrantiesView } from "@/components/views/warranties-view";
 import { AlertsView } from "@/components/views/alerts-view";
 import { DemoControlsView } from "@/components/views/demo-controls-view";
 import type { Role } from "@/lib/types";
@@ -26,6 +27,7 @@ const nav = [
   { id: "inspections", label: "Inspections", icon: CalendarCheck },
   { id: "approvals", label: "Approvals", icon: BookOpenCheck },
   { id: "certificates", label: "Certificates", icon: ShieldCheck },
+  { id: "warranties", label: "Warranties", icon: FileBadge },
   { id: "alerts", label: "Alerts", icon: BellRing },
   { id: "import", label: "Import", icon: Import },
   { id: "demo-controls", label: "Demo Controls", icon: Settings2 },
@@ -38,6 +40,7 @@ const titles: Record<string, { eyebrow: string; title: string; description: stri
   inspections: { eyebrow: "Field work", title: "Inspections", description: "Draft a mobile-friendly checklist, then send it for review." },
   approvals: { eyebrow: "Quality gate", title: "Approvals", description: "Return work with a correction, or issue a certificate with an explicit expiry." },
   certificates: { eyebrow: "Attestation", title: "Certificates", description: "Print a branded demo certificate and share a time-bound public snapshot." },
+  warranties: { eyebrow: "Product warranty", title: "Warranties", description: "Type in a warranty from its original document to reissue it in the Kee format and track when it ends." },
   alerts: { eyebrow: "Attention queue", title: "Alerts", description: "Acknowledge an alert without losing the underlying obligation." },
   "demo-controls": { eyebrow: "Scenario lab", title: "Demo Controls", description: "Download templates and sample data, change the demo date and exercise the main workflows." },
 };
@@ -49,6 +52,7 @@ function View({ view }: { view: string }): ReactNode {
     case "inspections": return <InspectionsView />;
     case "approvals": return <ApprovalsView />;
     case "certificates": return <CertificatesView />;
+    case "warranties": return <WarrantiesView />;
     case "alerts": return <AlertsView />;
     case "demo-controls": return <DemoControlsView />;
     case "import": return <ImportView />;
@@ -97,7 +101,7 @@ function AppFrame({ initialView }: { initialView: string }) {
       <div className="mx-2 mt-8 rounded-lg border border-[#467493] bg-[#123e60] px-3 py-3"><div className="flex items-center justify-between"><span className="eyebrow text-[#bad2e1]">Environment</span><Badge variant="warning" className="px-2 py-0.5 text-[9px]">Demo mode</Badge></div><p className="mt-2 text-xs leading-relaxed text-[#d6e7f1]">Local-first workspace. Records stay in this browser.</p></div>
       <nav className="mt-7 flex flex-1 flex-col gap-1" aria-label="Primary navigation">
         <span className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#80a9c2]">Workspace</span>
-        {nav.slice(0, 7).map(({ id, label, icon: Icon }, index) => <Link ref={index === 0 ? firstNavLink : undefined} key={id} href={`/${id}`} onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${view === id ? "bg-white text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}><Icon className="size-[17px]" aria-hidden="true" /><span>{label}</span>{id === "alerts" && openAlerts > 0 ? <span className={`ml-auto grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${view === id ? "bg-[#fde8e8] text-[#a52e35]" : "bg-[#d74349] text-white"}`}>{openAlerts}</span> : <ChevronRight className={`ml-auto size-3 opacity-0 transition-opacity group-hover:opacity-60 ${view === id ? "hidden" : ""}`} />}</Link>)}
+        {nav.slice(0, 8).map(({ id, label, icon: Icon }, index) => <Link ref={index === 0 ? firstNavLink : undefined} key={id} href={`/${id}`} onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${view === id ? "bg-white text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}><Icon className="size-[17px]" aria-hidden="true" /><span>{label}</span>{id === "alerts" && openAlerts > 0 ? <span className={`ml-auto grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${view === id ? "bg-[#fde8e8] text-[#a52e35]" : "bg-[#d74349] text-white"}`}>{openAlerts}</span> : <ChevronRight className={`ml-auto size-3 opacity-0 transition-opacity group-hover:opacity-60 ${view === id ? "hidden" : ""}`} />}</Link>)}
         <Separator className="my-5 bg-[#2a5774]" />
         <span className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#80a9c2]">Sandbox</span>
         <Link href="/demo-controls" onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold ${view === "demo-controls" ? "bg-white text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}><Settings2 className="size-[17px]" /><span>Demo Controls</span></Link>

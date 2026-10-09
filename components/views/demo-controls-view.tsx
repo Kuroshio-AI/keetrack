@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { CalendarDays, Download, Import as ImportIcon, RotateCcw, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarDays, Download, Import as ImportIcon, RotateCcw, ShieldAlert, Sparkles, Trash2, Upload } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,12 @@ import { Separator } from "@/components/ui/separator";
 import { sampleRows } from "@/lib/sample";
 import { downloadRegister } from "@/lib/register-download";
 import { Select } from "@/components/ui/select";
-import { addMonthsClamped, approveInspection, createInspection, setDeadlineShortcut, submitInspection, updateInspection } from "@/lib/domain";
+import { addMonthsClamped, approveInspection, createInspection, recalculateAlerts, setDeadlineShortcut, submitInspection, todayString, updateInspection, validateStoredState } from "@/lib/domain";
 
 export function DemoControlsView() {
-  const { state, setDemoDate, update, clearOperationalData, storageWarning } = useApp();
+  const { state, setDemoDate, update, clearOperationalData, restore, storageWarning } = useApp();
+  const [backupMessage, setBackupMessage] = useState("");
+  const backupInput = useRef<HTMLInputElement>(null);
   const [assetId, setAssetId] = useState(state.records[0]?.id ?? "");
   const [certificateExpiry, setCertificateExpiry] = useState(addMonthsClamped(state.demoDate, 12));
   const [message, setMessage] = useState("");
@@ -87,12 +89,36 @@ export function DemoControlsView() {
     if (!certificateExpiry || certificateExpiry < state.demoDate) { setMessage("Choose an expiry on or after the demo date."); return; }
     if (update((current) => approveInspection(current, submitted.id, certificateExpiry))) setMessage("Demo certificate issued. Open Certificates to print or create its QR.");
   }
+  // Everything lives in this browser, so a file is the only way to keep a trial's data through a reset or a new laptop.
+  function downloadBackup() {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `keetrack-backup-${todayString()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setBackupMessage("Backup downloaded. Keep the file somewhere safe.");
+  }
+  async function restoreBackup(file?: File) {
+    setBackupMessage("");
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setBackupMessage("That file is over 10MB, so it isn't a KeeTrack backup. Nothing was changed."); return; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(await file.text()); } catch { parsed = undefined; }
+    if (!validateStoredState(parsed)) { setBackupMessage("That file isn't a KeeTrack backup, or it's damaged. Nothing was changed."); return; }
+    if (!window.confirm(`Replace everything in this browser with the backup (${parsed.records.length} records)? Current data will be lost.`)) return;
+    if (restore(recalculateAlerts(parsed))) setBackupMessage(`Backup restored: ${parsed.records.length} records.`);
+  }
   function reset() {
-    if (window.confirm("Reset this demo? All local operational records, inspections, alerts and certificates will be cleared.")) { if (clearOperationalData()) window.location.assign("/dashboard"); }
+    if (window.confirm("Reset this demo? All local operational records, inspections, alerts, certificates and warranties will be cleared. Download a backup first if you need this data.")) { if (clearOperationalData()) window.location.assign("/dashboard"); }
   }
   return <div className="grid gap-5 lg:grid-cols-2">
     <Card className="lg:col-span-2"><CardHeader><div className="eyebrow">Ready-made inputs</div><CardTitle>Use the register template.</CardTitle><CardDescription>Download a blank template or preview one of two fictional six-row scenarios through the same validation path.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3"><div className="grid gap-2 sm:grid-cols-2"><Button variant="outline" className="justify-start" aria-label="Download blank register template as XLSX" onClick={() => downloadRegister("xlsx", [], "keetrack-register-template")}><Download data-icon="inline-start" />Blank template <span className="ml-auto text-xs text-slate-400">.xlsx</span></Button><Button variant="outline" className="justify-start" aria-label="Download blank register template as CSV" onClick={() => downloadRegister("csv", [], "keetrack-register-template")}><Download data-icon="inline-start" />Blank template <span className="ml-auto text-xs text-slate-400">.csv</span></Button></div><Separator /><div className="grid gap-4 md:grid-cols-2"><div className="rounded-lg border border-line bg-paper p-4"><div className="eyebrow text-accent">Filled sample 1</div><div className="mt-1 font-semibold text-navy">Inspections &amp; approvals</div><p className="mt-2 text-xs leading-relaxed text-slate-500">Exercise due and overdue inspections, licence expiry, a valid certificate and a retired record.</p><div className="mt-4 grid gap-2 sm:grid-cols-2"><Button variant="secondary" className="justify-start" aria-label="Download filled sample 1 as XLSX" onClick={() => downloadRegister("xlsx", sampleRows(state.demoDate, "1"), "keetrack-sample-1-register")}><Download data-icon="inline-start" />Download XLSX</Button><Button variant="secondary" className="justify-start" aria-label="Download filled sample 1 as CSV" onClick={() => downloadRegister("csv", sampleRows(state.demoDate, "1"), "keetrack-sample-1-register")}><Download data-icon="inline-start" />Download CSV</Button><Button asChild className="justify-start sm:col-span-2"><Link href="/import?sample=1"><ImportIcon data-icon="inline-start" />Preview filled sample 1</Link></Button></div></div><div className="rounded-lg border border-line bg-paper p-4"><div className="eyebrow text-accent">Filled sample 2</div><div className="mt-1 font-semibold text-navy">Renewals &amp; retirement</div><p className="mt-2 text-xs leading-relaxed text-slate-500">Exercise an expired certificate renewal, independent deadlines and retired-record exclusion.</p><div className="mt-4 grid gap-2 sm:grid-cols-2"><Button variant="secondary" className="justify-start" aria-label="Download filled sample 2 as XLSX" onClick={() => downloadRegister("xlsx", sampleRows(state.demoDate, "2"), "keetrack-sample-2-register")}><Download data-icon="inline-start" />Download XLSX</Button><Button variant="secondary" className="justify-start" aria-label="Download filled sample 2 as CSV" onClick={() => downloadRegister("csv", sampleRows(state.demoDate, "2"), "keetrack-sample-2-register")}><Download data-icon="inline-start" />Download CSV</Button><Button asChild className="justify-start sm:col-span-2"><Link href="/import?sample=2"><ImportIcon data-icon="inline-start" />Preview filled sample 2</Link></Button></div></div></div></CardContent><CardFooter><p className="text-xs leading-relaxed text-slate-500">Both samples contain six records and can be imported together. Dates use the visible demo date; inspections and approvals are created through the workflow.</p></CardFooter></Card>
     {storageWarning && <Card className="border-[#e7be6a] bg-[#fffaf0] lg:col-span-2"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div className="flex gap-3"><ShieldAlert className="mt-0.5 size-5 shrink-0 text-[#a36b00]" /><div><div className="font-semibold text-navy">Storage recovery is waiting for you.</div><p className="mt-1 text-sm text-slate-600">KeeTrack has not overwritten the unreadable stored bytes. Start fresh only after confirming that recovery is not needed.</p></div></div><Button variant="destructive" onClick={() => { if (window.confirm("Start a new empty demo and discard the unreadable local state?") && clearOperationalData()) window.location.assign("/dashboard"); }}>Start fresh</Button></CardContent></Card>}
+    <Card className="lg:col-span-2"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div><div className="eyebrow">Keep this workspace</div><div className="mt-1 font-semibold text-navy">Back up before clearing the browser or switching computers.</div><p className="mt-1 text-sm text-slate-500">Everything stays in this browser only. A backup file holds every record, warranty, inspection and certificate.</p>{backupMessage && <p className="mt-2 text-sm text-navy" role="status">{backupMessage}</p>}</div>
+      <div className="flex shrink-0 flex-wrap gap-2"><Button variant="outline" disabled={Boolean(storageWarning)} onClick={downloadBackup}><Download data-icon="inline-start" />Download backup</Button><Button variant="secondary" onClick={() => backupInput.current?.click()}><Upload data-icon="inline-start" />Restore backup</Button><input ref={backupInput} type="file" accept=".json,application/json" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(event) => { void restoreBackup(event.target.files?.[0]); event.target.value = ""; }} /></div>
+    </CardContent></Card>
     <Card id="whatsapp-trial" className="scroll-mt-24 lg:col-span-2">
       <CardHeader>
         <div className="eyebrow">Presentation setup</div>

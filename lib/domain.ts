@@ -17,6 +17,7 @@ import type {
   RegisterRow,
   RecordType,
   Role,
+  Warranty,
 } from "./types";
 import { REGISTER_HEADERS } from "./types";
 
@@ -90,6 +91,7 @@ export function validateStoredState(value: unknown): value is AppState {
       && (record.serialNo === undefined || isText(record.serialNo)) && (record.assignedEngineer === undefined || isText(record.assignedEngineer))
       && (record.inspectionIntervalMonths === undefined || (Number.isSafeInteger(record.inspectionIntervalMonths) && record.inspectionIntervalMonths > 0))
       && isOptionalDate(record.inspectionDueDate) && isOptionalDate(record.licenceExpiryDate) && isOptionalDate(record.certificateIssuedDate) && isOptionalDate(record.certificateExpiryDate) && isOptionalDate(record.retirementDueDate)
+      && (record.warranty === undefined || Boolean(record.warranty && typeof record.warranty === "object" && parseWarranty(record.warranty as Record<string, unknown>).warranty))
       && Array.isArray(record.certificates) && record.certificates.every(isCertificate) && Array.isArray(record.activity) && record.activity.every(isActivity);
   };
   const isInspection = (item: unknown): boolean => {
@@ -272,6 +274,9 @@ function recordDeadlines(record: AssetRecord, demoDate: string): Deadline[] {
   const currentCertificate = [...record.certificates].reverse().find((certificate) => certificate.status === "Valid" || certificate.status === "Expired");
   if (currentCertificate) deadlines.push({ key: `certificate:${currentCertificate.id}`, event: "Certificate expiry", date: currentCertificate.expiryDate, severity: "critical" });
   if (record.retirementDueDate) deadlines.push({ key: "retirement", event: "Retirement due", date: record.retirementDueDate, severity: "warning" });
+  // Only typed-in warranties, and only until they end: an expired 2018 warranty is history, not an action.
+  const warranty = record.warranty && warrantyFor(record, demoDate);
+  if (warranty?.status === "Valid") deadlines.push({ key: "warranty", event: "Warranty expiry", date: warranty.validUntil, severity: "warning" });
   return deadlines;
 }
 
@@ -419,6 +424,50 @@ export function changeCertificateStatus(state: AppState, assetId: string, certif
   if (!record || !certificate || certificate.status === "Revoked" || certificate.status === "Superseded") return state;
   const event = `Certificate ${status.toLowerCase()}`;
   return recalculateAlerts({ ...state, records: state.records.map((item) => item.id === assetId ? { ...item, certificates: item.certificates.map((cert) => cert.id === certificateId ? { ...cert, status, token: undefined, verifyUrl: undefined, tokenIssuedAt: undefined } : cert), activity: [activity(event, certificate.number, actor, timestamp), ...item.activity], updatedAt: timestamp } : item), alerts: [certificateAlert(record, { ...certificate, status }, event, timestamp), ...state.alerts], activity: [activity(event, `${record.assetRef} · ${certificate.number}`, actor, timestamp), ...state.activity] }, timestamp);
+}
+
+const WARRANTY_OPTIONAL = ["contractNo", "project", "scope", "mainContractor"] as const;
+
+// Used for the typed-in form and for stored or restored workspaces, so it trusts nothing.
+export function parseWarranty(raw: Record<string, unknown>): { warranty?: Warranty; error?: string } {
+  const number = trimValue(raw.number);
+  const product = trimValue(raw.product);
+  if (!number || number.length > 60 || /[<>]/.test(number)) return { error: "Warranty number is required (up to 60 characters, no < or >)." };
+  if (!product || product.length > 160) return { error: "Product is required (up to 160 characters)." };
+  if (!isDateString(raw.warrantyDate)) return { error: "Warranty date must be a valid date." };
+  if (typeof raw.years !== "number" || !Number.isInteger(raw.years) || raw.years < 1 || raw.years > 25) return { error: "Duration must be 1 to 25 whole years." };
+  const warranty: Warranty = { number, product, warrantyDate: raw.warrantyDate, years: raw.years };
+  for (const field of WARRANTY_OPTIONAL) {
+    if (raw[field] !== undefined && typeof raw[field] !== "string") return { error: `${field} must be text.` };
+    const value = trimValue(raw[field]);
+    if (value.length > 160) return { error: "Contract, project, scope and contractor are limited to 160 characters." };
+    if (value) warranty[field] = value;
+  }
+  return { warranty };
+}
+
+export type WarrantyDetails = Warranty & { validUntil: string; status: "Valid" | "Expired"; typedIn: boolean };
+
+export const warrantyProduct = (assetType: string) => /horizontal lifeline/i.test(assetType) ? "KeeLine® Horizontal Lifeline System" : assetType;
+
+// One warranty per asset: the typed-in one, else 5 years from the first certificate so renewals don't restart it.
+export function warrantyFor(record: AssetRecord, demoDate: string): WarrantyDetails | undefined {
+  const firstCertificate = record.certificates.map((item) => item.issuedDate).sort()[0];
+  const warranty = record.warranty ?? (firstCertificate ? { number: `WAR-${record.assetRef}`, product: warrantyProduct(record.assetType), warrantyDate: firstCertificate, years: 5 } : undefined);
+  if (!warranty) return undefined;
+  const validUntil = addMonthsClamped(warranty.warrantyDate, warranty.years * 12);
+  return { ...warranty, validUntil, status: demoDate > validUntil ? "Expired" : "Valid", typedIn: Boolean(record.warranty) };
+}
+
+// A RegisterRow adds the asset first, so an old warranty for a system not yet in the register is one save.
+export function saveWarranty(state: AppState, asset: string | RegisterRow, warranty: Warranty, actor = state.role, timestamp = nowIso()): AppState {
+  const withAsset = typeof asset === "string" ? state : importRows(state, [asset], actor, timestamp);
+  const record = typeof asset === "string" ? getRecord(withAsset, asset) : withAsset.records.find((item) => item.assetRef === asset.assetRef);
+  if (!record) throw new Error("Choose a register record for this warranty.");
+  const key = warranty.number.toLowerCase();
+  if (withAsset.records.some((item) => item.id !== record.id && warrantyFor(item, state.demoDate)?.number.toLowerCase() === key)) throw new Error(`Warranty ${warranty.number} is already on another record.`);
+  const event = activity(record.warranty ? "Warranty updated" : "Warranty added", `${record.assetRef} · ${warranty.number}`, actor, timestamp);
+  return recalculateAlerts({ ...withAsset, records: withAsset.records.map((item) => item.id === record.id ? { ...item, warranty, activity: [event, ...item.activity], updatedAt: timestamp } : item), activity: [event, ...withAsset.activity] }, timestamp);
 }
 
 export function escapeCsvCell(value: unknown): string {

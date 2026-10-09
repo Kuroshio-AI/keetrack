@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import QRCode from "qrcode";
 import { Check, Copy, ExternalLink, FileBadge, Printer, QrCode, ShieldCheck } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Signature, WarrantyDocument, type WarrantyPrint } from "@/components/warranty-document";
-import { addMonthsClamped, effectiveCertificateStatus, revokeCertificate } from "@/lib/domain";
+import { effectiveCertificateStatus, revokeCertificate } from "@/lib/domain";
+import { qrFor, warrantyPrint } from "@/lib/qr";
 import type { AssetRecord, Certificate } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 
@@ -18,13 +18,6 @@ function snapshot(record: AssetRecord, certificate: Certificate, demoDate: strin
 }
 type QrSnapshot = { image: string; url: string; key: string; createdAt: number };
 type PrintSnapshot = ReturnType<typeof snapshot> & { result: string; qr: string; site: string; serialNo?: string; inspector?: string; inspectorSignature?: string; inspectedAt?: string; approvedAt?: string; nextInspection?: string };
-
-async function qrFor(payload: object): Promise<{ image: string; url: string }> {
-  const response = await fetch("/api/certificates/demo-token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-  const body = await response.json() as { verifyUrl?: string; error?: string };
-  if (!response.ok || !body.verifyUrl) throw new Error(body.error ?? "QR could not be created. Try again.");
-  return { image: await QRCode.toDataURL(body.verifyUrl, { width: 320, margin: 4, color: { dark: "#0b3151", light: "#ffffff" } }), url: body.verifyUrl };
-}
 
 export function CertificatesView() {
   const { state, update } = useApp();
@@ -87,16 +80,10 @@ export function CertificatesView() {
     if (fresh) setPrinting({ kind: "certificate", ...snapshot(record, certificate, state.demoDate), result: certificate.result, qr: fresh.image, site: record.site, serialNo: record.serialNo, inspector: inspection?.inspector, inspectorSignature: inspection?.signature, inspectedAt: inspection?.submittedAt, approvedAt: inspection?.reviewedAt, nextInspection: inspection?.nextInspectionDate ?? record.inspectionDueDate });
   }
 
-  // One warranty per asset, dated from its first certificate so renewal inspections don't restart the 5 years.
-  async function printWarranty(record: AssetRecord, certificate: Certificate) {
-    setError(""); setBusy(`warranty:${certificate.id}`);
-    const warrantyDate = record.certificates.map((item) => item.issuedDate).sort()[0];
-    const validUntil = addMonthsClamped(warrantyDate, 60);
-    const warranty = { warrantyNo: `WAR-${record.assetRef}`, status: state.demoDate > validUntil ? "Expired" as const : "Valid" as const, warrantyDate, validUntil };
-    try {
-      const { image } = await qrFor({ kind: "warranty", certificateNo: warranty.warrantyNo, assetRef: record.assetRef, assetType: record.assetType, issuedDate: warrantyDate, expiryDate: validUntil, status: warranty.status });
-      setPrinting({ kind: "warranty", ...warranty, product: /horizontal lifeline/i.test(record.assetType) ? "KeeLine® Horizontal Lifeline System" : record.assetType, assetRef: record.assetRef, serialNo: record.serialNo, site: record.site, owner: record.owner, asOf: state.demoDate, qr: image });
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Warranty could not be prepared. Try again."); }
+  async function printWarranty(record: AssetRecord) {
+    setError(""); setBusy(`warranty:${record.id}`);
+    try { setPrinting({ kind: "warranty", ...await warrantyPrint(record, state.demoDate) }); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Warranty could not be prepared. Try again."); }
     finally { setBusy(undefined); }
   }
 
@@ -109,7 +96,7 @@ export function CertificatesView() {
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-paper p-3 text-sm"><div><div className="eyebrow">Issued</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.issuedDate)}</div></div><div><div className="eyebrow">Expires</div><div className="mt-1 font-semibold text-navy">{formatDate(certificate.expiryDate)}</div></div></div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void print(record, certificate)}><Printer />Print</Button>
-            <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void printWarranty(record, certificate)}><FileBadge />{busy === `warranty:${certificate.id}` ? "Preparing…" : "Warranty"}</Button>
+            <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void printWarranty(record)}><FileBadge />{busy === `warranty:${record.id}` ? "Preparing…" : "Warranty"}</Button>
             <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => void showQr(record, certificate)}><QrCode />{busy === certificate.id ? "Generating…" : currentQr(record, certificate) ? "Show QR" : "Create QR"}</Button>
             {canChange && (details.status === "Valid" || details.status === "Expired") && <Button variant="ghost" size="sm" className="text-danger" disabled={Boolean(busy)} onClick={() => revoke(record, certificate)}>Revoke</Button>}
           </div>

@@ -1,34 +1,35 @@
 import type { ReactNode } from "react";
+import type { WarrantyDetails } from "@/lib/domain";
 import { formatDate, formatLocalDate } from "@/lib/utils";
 
-export type WarrantyPrint = { warrantyNo: string; product: string; assetRef: string; serialNo?: string; site: string; owner: string; warrantyDate: string; validUntil: string; status: "Valid" | "Expired"; asOf: string; qr: string };
+export type WarrantyPrint = WarrantyDetails & { assetRef: string; serialNo?: string; site: string; owner: string; asOf: string; qr: string };
 
 export function Signature({ label, name, date, image }: { label: string; name: string; date?: string; image?: string }) {
   return <div><div className="h-12 border-b border-[#0b3151]/40">{image && <img src={image} alt="" className="h-full" />}</div><div className="mt-2 text-sm font-semibold text-navy">{name}</div><div className="text-xs text-slate-500">{label}{date ? ` · ${formatLocalDate(date)}` : ""}</div></div>;
 }
 
 // Each page is sized to one A4 sheet so the footer sits at the bottom of both printed pages.
-function Page({ number, className = "", children }: { number: number; className?: string; children: ReactNode }) {
+function Page({ number, typedIn, className = "", children }: { number: number; typedIn: boolean; className?: string; children: ReactNode }) {
   return <div className={`mx-auto border-[8px] border-[#0b3151] p-1 ${className}`}><div className="flex min-h-[255mm] flex-col border border-[#b8cedc] px-8 py-6">
     {children}
     <footer className="mt-auto border-t border-line pt-2 text-[10px] leading-relaxed text-slate-500">
       <div className="flex justify-between gap-4 font-semibold text-navy"><span>Kee Safety LLC · Separating People From Hazards</span><span>Page {number} of 2</span></div>
       <div>PO Box 18448, Dubai Investment Park, near Green Community, Dubai, UAE · www.keesafety.ae · T +971-4-8859066 · menasales@keesafety.com · uaesales@keesafety.com</div>
-      <div>Demo warranty · fictional data. QR verification is a signed snapshot valid for 24 hours.</div>
+      <div>Demo warranty · {typedIn ? "details typed in from the original warranty" : "fictional data"}. QR verification is a signed snapshot valid for 24 hours.</div>
     </footer>
   </div></div>;
 }
 
 export function WarrantyDocument(w: WarrantyPrint) {
-  const registration: [string, ReactNode][] = [["Contract #", ""], ["Product", w.product], ["Scope", ""], ["Project", ""], ["Site address", w.site], ["Client / owner", w.owner], ["Main contractor", ""], ["Date of warranty", formatDate(w.warrantyDate)], ["Duration of warranty", `5 years from warranty date · until ${formatDate(w.validUntil)}`], ["Installer", "Kee Safety LLC"], ["Installer stamp", <div className="h-16" />]];
+  const registration: [string, ReactNode][] = [["Contract #", w.contractNo], ["Product", w.product], ["Scope", w.scope], ["Project", w.project], ["Site address", w.site], ["Client / owner", w.owner], ["Main contractor", w.mainContractor], ["Date of warranty", formatDate(w.warrantyDate)], ["Duration of warranty", `${w.years} year${w.years === 1 ? "" : "s"} from warranty date · until ${formatDate(w.validUntil)}`], ["Installer", "Kee Safety LLC"], ["Installer stamp", <div className="h-16" />]];
   const facts: [string, ReactNode][] = [["Asset", `${w.assetRef}${w.serialNo ? ` · ${w.serialNo}` : ""}`], ["Site", w.site], ["Client / owner", w.owner], ["Warranty period", `${formatDate(w.warrantyDate)} – ${formatDate(w.validUntil)}`]];
   const [brand, model] = w.product.split("®");
   return <div className="text-pretty text-[11.5px] leading-[1.5] text-ink">
-    <Page number={1}>
+    <Page number={1} typedIn={w.typedIn}>
       <div className="flex items-start justify-between gap-6">
         <div className="flex gap-4">
           <img src="/kee-safety-logo.png" alt="Kee Safety" className="size-16 shrink-0" />
-          <div><div className="text-xs font-bold uppercase tracking-[.2em] text-accent">Product warranty</div><h2 className="mt-1 text-balance text-2xl font-black leading-tight tracking-tight text-navy">{model === undefined ? w.product : <>{brand}<sup className="text-[.5em]">®</sup>{model}</>}</h2><div className="mt-2 text-slate-500">Document Ref. 713104326 · Warranty no. <span className="font-semibold text-navy">{w.warrantyNo}</span></div></div>
+          <div><div className="text-xs font-bold uppercase tracking-[.2em] text-accent">Product warranty</div><h2 className="mt-1 text-balance text-2xl font-black leading-tight tracking-tight text-navy">{model === undefined ? w.product : <>{brand}<sup className="text-[.5em]">®</sup>{model}</>}</h2><div className="mt-2 text-slate-500">Document Ref. 713104326 · Warranty no. <span className="font-semibold text-navy">{w.number}</span></div></div>
         </div>
         <div className="shrink-0 text-center"><img src={w.qr} alt="Warranty verification QR" className="mx-auto size-28" /><div className="eyebrow">Scan to verify</div></div>
       </div>
@@ -58,8 +59,8 @@ export function WarrantyDocument(w: WarrantyPrint) {
       </ul>
       <p className="mb-4 mt-4">Kee Safety LLC recommends an annual inspection and maintenance arrangement to support continued system performance and compliance. Details are available upon request.</p>
     </Page>
-    <Page number={2} className="mt-6 break-before-page">
-      <div className="text-xs font-bold uppercase tracking-[.2em] text-accent">{w.warrantyNo}</div>
+    <Page number={2} typedIn={w.typedIn} className="mt-6 break-before-page">
+      <div className="text-xs font-bold uppercase tracking-[.2em] text-accent">{w.number}</div>
       <h2 className="mt-1 text-2xl font-black tracking-tight text-navy">Customer product warranty registration</h2>
       <p className="mt-3">The end user / system owner shall complete this section and retain a copy with the project handover and maintenance records. A completed copy should be emailed to <span className="font-semibold text-navy">menasales@keesafety.com</span> with the subject “Warranty – [Project Name]”.</p>
       <dl className="mt-5 border-t border-[#0b3151]/40">
