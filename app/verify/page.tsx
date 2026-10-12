@@ -15,6 +15,7 @@ const STATUS = {
 const WARRANTY: Partial<Record<CertificateStatus, { title: string; detail: string }>> = {
   Valid: { title: "Valid warranty", detail: "This product warranty is in force." },
   Expired: { title: "Warranty expired", detail: "The warranty period has ended." },
+  Revoked: { title: "Warranty revoked", detail: "This warranty has been withdrawn. Do not rely on it." },
 };
 
 export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ token?: string | string[] }> }) {

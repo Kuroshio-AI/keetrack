@@ -285,6 +285,21 @@ export function nextDeadline(record: AssetRecord, demoDate: string): (Deadline &
   return recordDeadlines(record, demoDate).map((deadline) => ({ ...deadline, days: dateDiffDays(deadline.date, demoDate) })).sort((a, b) => a.days - b.days)[0];
 }
 
+const dayCount = (days: number) => `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"}`;
+
+// Short timing for list rows: "Today", "In 30 days", "3 days overdue".
+export function deadlineWhen(days: number): string {
+  return days === 0 ? "Today" : days > 0 ? `In ${dayCount(days)}` : `${dayCount(days)} overdue`;
+}
+
+// Names the obligation, not just the timing: "Retirement due in 30 days", "Licence expired 2 days ago".
+export function deadlineLabel({ event, days }: { event: string; days: number }): string {
+  const noun = event.split(" ")[0];
+  const expires = event.endsWith("expiry");
+  if (days < 0) return expires ? `${noun} expired ${dayCount(days)} ago` : `${noun} ${dayCount(days)} overdue`;
+  return `${noun} ${expires ? "expires" : "due"} ${days === 0 ? "today" : `in ${dayCount(days)}`}`;
+}
+
 export function recalculateAlerts(state: AppState, timestamp = nowIso()): AppState {
   const next = state.alerts.map((alert) => ({ ...alert }));
   const currentKeys = new Set<string>();
@@ -436,7 +451,8 @@ export function parseWarranty(raw: Record<string, unknown>): { warranty?: Warran
   if (!product || product.length > 160) return { error: "Product is required (up to 160 characters)." };
   if (!isDateString(raw.warrantyDate)) return { error: "Warranty date must be a valid date." };
   if (typeof raw.years !== "number" || !Number.isInteger(raw.years) || raw.years < 1 || raw.years > 25) return { error: "Duration must be 1 to 25 whole years." };
-  const warranty: Warranty = { number, product, warrantyDate: raw.warrantyDate, years: raw.years };
+  if (raw.revokedDate !== undefined && !isDateString(raw.revokedDate)) return { error: "Revoked date must be a valid date." };
+  const warranty: Warranty = { number, product, warrantyDate: raw.warrantyDate, years: raw.years, ...(raw.revokedDate ? { revokedDate: raw.revokedDate } : {}) };
   for (const field of WARRANTY_OPTIONAL) {
     if (raw[field] !== undefined && typeof raw[field] !== "string") return { error: `${field} must be text.` };
     const value = trimValue(raw[field]);
@@ -446,7 +462,7 @@ export function parseWarranty(raw: Record<string, unknown>): { warranty?: Warran
   return { warranty };
 }
 
-export type WarrantyDetails = Warranty & { validUntil: string; status: "Valid" | "Expired"; typedIn: boolean };
+export type WarrantyDetails = Warranty & { validUntil: string; status: "Valid" | "Expired" | "Revoked"; typedIn: boolean };
 
 export const warrantyProduct = (assetType: string) => /horizontal lifeline/i.test(assetType) ? "KeeLine® Horizontal Lifeline System" : assetType;
 
@@ -456,7 +472,7 @@ export function warrantyFor(record: AssetRecord, demoDate: string): WarrantyDeta
   const warranty = record.warranty ?? (firstCertificate ? { number: `WAR-${record.assetRef}`, product: warrantyProduct(record.assetType), warrantyDate: firstCertificate, years: 5 } : undefined);
   if (!warranty) return undefined;
   const validUntil = addMonthsClamped(warranty.warrantyDate, warranty.years * 12);
-  return { ...warranty, validUntil, status: demoDate > validUntil ? "Expired" : "Valid", typedIn: Boolean(record.warranty) };
+  return { ...warranty, validUntil, status: record.warranty?.revokedDate ? "Revoked" : demoDate > validUntil ? "Expired" : "Valid", typedIn: Boolean(record.warranty) };
 }
 
 // A RegisterRow adds the asset first, so an old warranty for a system not yet in the register is one save.
@@ -464,10 +480,36 @@ export function saveWarranty(state: AppState, asset: string | RegisterRow, warra
   const withAsset = typeof asset === "string" ? state : importRows(state, [asset], actor, timestamp);
   const record = typeof asset === "string" ? getRecord(withAsset, asset) : withAsset.records.find((item) => item.assetRef === asset.assetRef);
   if (!record) throw new Error("Choose a register record for this warranty.");
+  if (record.warranty?.revokedDate) throw new Error(`${record.assetRef}'s warranty is revoked and can't be changed.`);
   const key = warranty.number.toLowerCase();
   if (withAsset.records.some((item) => item.id !== record.id && warrantyFor(item, state.demoDate)?.number.toLowerCase() === key)) throw new Error(`Warranty ${warranty.number} is already on another record.`);
   const event = activity(record.warranty ? "Warranty updated" : "Warranty added", `${record.assetRef} · ${warranty.number}`, actor, timestamp);
   return recalculateAlerts({ ...withAsset, records: withAsset.records.map((item) => item.id === record.id ? { ...item, warranty, activity: [event, ...item.activity], updatedAt: timestamp } : item), activity: [event, ...withAsset.activity] }, timestamp);
+}
+
+// Revoking keeps the warranty (a derived one is stored first) so its QR check says Revoked; it can't be undone.
+export function revokeWarranty(state: AppState, assetId: string, actor = state.role, timestamp = nowIso()): AppState {
+  const record = getRecord(state, assetId);
+  const current = record && warrantyFor(record, state.demoDate);
+  if (!record || !current || current.status === "Revoked") return state;
+  const { validUntil, status, typedIn, ...warranty } = current;
+  const event = activity("Warranty revoked", `${record.assetRef} · ${warranty.number}`, actor, timestamp);
+  return recalculateAlerts({ ...state, records: state.records.map((item) => item.id === assetId ? { ...item, warranty: { ...warranty, revokedDate: state.demoDate }, activity: [event, ...item.activity], updatedAt: timestamp } : item), activity: [event, ...state.activity] }, timestamp);
+}
+
+// For typed-in mistakes; a record with a certificate falls back to the warranty derived from it.
+export function removeWarranty(state: AppState, assetId: string, actor = state.role, timestamp = nowIso()): AppState {
+  const record = getRecord(state, assetId);
+  if (!record?.warranty || record.warranty.revokedDate) return state;
+  const event = activity("Warranty removed", `${record.assetRef} · ${record.warranty.number}`, actor, timestamp);
+  return recalculateAlerts({ ...state, records: state.records.map((item) => item.id === assetId ? { ...item, warranty: undefined, activity: [event, ...item.activity], updatedAt: timestamp } : item), activity: [event, ...state.activity] }, timestamp);
+}
+
+// Deletes the record with everything hanging off it; setting it to Retired is the way to keep its history.
+export function deleteRecord(state: AppState, assetId: string, actor = state.role, timestamp = nowIso()): AppState {
+  const record = getRecord(state, assetId);
+  if (!record) return state;
+  return recalculateAlerts({ ...state, records: state.records.filter((item) => item.id !== assetId), inspections: state.inspections.filter((item) => item.assetId !== assetId), alerts: state.alerts.filter((alert) => alert.assetId !== assetId), activity: [activity("Record deleted", record.assetRef, actor, timestamp), ...state.activity] }, timestamp);
 }
 
 export function escapeCsvCell(value: unknown): string {

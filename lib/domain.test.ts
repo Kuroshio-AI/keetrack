@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acknowledgeAlert, addMonthsClamped, approveInspection, changeCertificateStatus, createInitialState, createInspection, dateDiffDays, deleteInspection, importRows, nextDeadline, recalculateAlerts, returnInspection, rowToRecord, submitInspection, updateInspection } from "./domain";
+import { acknowledgeAlert, addMonthsClamped, approveInspection, changeCertificateStatus, createInitialState, createInspection, dateDiffDays, deadlineLabel, deadlineWhen, deleteInspection, importRows, nextDeadline, recalculateAlerts, returnInspection, rowToRecord, submitInspection, updateInspection } from "./domain";
 import { commitState, loadState } from "./storage";
 import type { AppState } from "./types";
 
@@ -104,4 +104,13 @@ test("nextDeadline returns the most urgent obligation", () => {
   const deadline = nextDeadline(state.records[0], state.demoDate);
   assert.equal(deadline?.key, "inspection");
   assert.equal(deadline?.days, -3);
+});
+
+test("deadline labels say which obligation is due and when", () => {
+  assert.equal(deadlineLabel({ event: "Retirement due", days: 30 }), "Retirement due in 30 days");
+  assert.equal(deadlineLabel({ event: "Inspection due", days: 0 }), "Inspection due today");
+  assert.equal(deadlineLabel({ event: "Inspection due", days: -3 }), "Inspection 3 days overdue");
+  assert.equal(deadlineLabel({ event: "Licence expiry", days: 1 }), "Licence expires in 1 day");
+  assert.equal(deadlineLabel({ event: "Certificate expiry", days: -2 }), "Certificate expired 2 days ago");
+  assert.deepEqual([0, 30, 1, -3].map(deadlineWhen), ["Today", "In 30 days", "In 1 day", "3 days overdue"]);
 });

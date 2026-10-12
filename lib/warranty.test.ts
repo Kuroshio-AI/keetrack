@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createInitialState, nextDeadline, parseWarranty, rowToRecord, saveWarranty, validateStoredState, warrantyFor } from "./domain";
+import { createInitialState, createInspection, deleteRecord, nextDeadline, parseWarranty, removeWarranty, revokeWarranty, rowToRecord, saveWarranty, validateStoredState, warrantyFor } from "./domain";
 import type { RegisterRow } from "./types";
 
 const typed = { number: "KS-W-2021-118", product: "KeeLine® Horizontal Lifeline System", warrantyDate: "2021-11-01", years: 5, project: "Marina Tower" };
@@ -30,4 +30,29 @@ test("typed-in warranties are validated, stored with their asset and override th
 
   assert.ok(validateStoredState(state));
   assert.equal(validateStoredState({ ...state, records: [{ ...record, warranty: { ...warranty, years: "5" } }] }), false, "restored backups are checked");
+});
+
+test("warranties can be revoked or removed, and records deleted with what hangs off them", () => {
+  const warranty = parseWarranty(typed).warranty!;
+  const certified = { ...rowToRecord({ ...newAsset, certificateNo: "C-1", certificateIssuedDate: "2026-09-09", certificateExpiryDate: "2027-09-08" }), id: "asset-1" };
+  const base = { ...createInitialState("2026-10-09"), records: [certified] };
+
+  const revoked = revokeWarranty(base, "asset-1");
+  const stored = revoked.records[0];
+  assert.equal(warrantyFor(stored, "2026-10-09")?.status, "Revoked", "a derived warranty is stored so it stays revoked");
+  assert.equal(stored.warranty?.revokedDate, "2026-10-09");
+  assert.equal(removeWarranty(revoked, "asset-1"), revoked, "removing can't bring a revoked warranty back");
+  assert.throws(() => saveWarranty(revoked, "asset-1", warranty), /revoked/);
+  assert.ok(validateStoredState(revoked));
+
+  const typedIn = saveWarranty(base, "asset-1", warranty);
+  assert.equal(nextDeadline(typedIn.records[0], "2026-10-09")?.key, "warranty");
+  const removed = removeWarranty(typedIn, "asset-1");
+  assert.equal(warrantyFor(removed.records[0], "2026-10-09")?.number, `WAR-${newAsset.assetRef}`, "falls back to the certificate warranty");
+  assert.equal(removed.alerts.some((alert) => alert.status === "open" && alert.event === "Warranty expiry"), false);
+
+  const { state: inspected } = createInspection(typedIn, "asset-1");
+  const deleted = deleteRecord(inspected, "asset-1");
+  assert.equal(deleted.records.length + deleted.inspections.length + deleted.alerts.length, 0, "record, inspection and alerts all go");
+  assert.equal(deleted.activity[0].event, "Record deleted");
 });

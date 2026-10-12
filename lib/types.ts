@@ -67,6 +67,8 @@ export type Warranty = {
   project?: string;
   scope?: string;
   mainContractor?: string;
+  // Demo date it was revoked; a revoked warranty is kept for the record and can't be edited.
+  revokedDate?: string;
 };
 
 export type AssetRecord = RegisterRow & {

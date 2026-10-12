@@ -38,7 +38,7 @@ export function WarrantyDocument(w: WarrantyPrint) {
           {facts.map(([label, value]) => <div key={label}><dt className="eyebrow">{label}</dt><dd className="mt-0.5 font-semibold text-navy">{value}</dd></div>)}
         </dl>
         {/* Same stamp as the approvals receipt. Dated "as of" because paper can't stay current; the QR is the live check. */}
-        <div className={`stamp flex shrink-0 flex-col items-center rounded-lg border-2 px-3 py-1.5 outline outline-1 outline-offset-[3px] ${w.status === "Valid" ? "border-success text-success outline-success/40" : "border-warning text-warning outline-warning/40"}`}>
+        <div className={`stamp flex shrink-0 flex-col items-center rounded-lg border-2 px-3 py-1.5 outline outline-1 outline-offset-[3px] ${w.status === "Valid" ? "border-success text-success outline-success/40" : w.status === "Revoked" ? "border-danger text-danger outline-danger/40" : "border-warning text-warning outline-warning/40"}`}>
           <span className="text-[9px] font-bold uppercase tracking-[.22em] opacity-80">Warranty</span>
           <span className="text-xl font-black uppercase leading-tight tracking-[.16em]">{w.status}</span>
           <span className="font-mono text-[10px] font-semibold">as of {formatDate(w.asOf)}</span>
