@@ -18,6 +18,7 @@ import type {
   RecordType,
   Role,
   Saving,
+  SavingHeader,
   SavingType,
   Warranty,
 } from "./types";
@@ -533,7 +534,7 @@ const isAmount = (value: unknown, max: number): value is number => typeof value 
 // Used for the typed-in form and for stored or restored workspaces, so it trusts nothing.
 export function parseSaving(raw: Record<string, unknown>): { saving?: SavingInput; error?: string } {
   const type = raw.type;
-  if (typeof type !== "string" || !Object.hasOwn(SAVING_TYPES, type)) return { error: "Choose a saving type." };
+  if (typeof type !== "string" || !Object.hasOwn(SAVING_TYPES, type)) return { error: "Saving type must be Paper recycling, Pallet reuse, Delivery consolidation or Other." };
   const savingType = type as SavingType;
   if (!isDateString(raw.date)) return { error: "Date must be a valid date." };
   if (!isAmount(raw.quantity, 10_000_000) || raw.quantity === 0) return { error: "Quantity must be more than 0 (up to 10,000,000)." };
@@ -588,6 +589,56 @@ export function removeSaving(state: AppState, id: string, actor = state.role, ti
   const saving = state.savings?.find((item) => item.id === id);
   if (!saving) return state;
   return { ...state, savings: state.savings?.filter((item) => item.id !== id), activity: [activity("Saving removed", `${saving.number} · ${SAVING_TYPES[saving.type].label}`, actor, timestamp), ...state.activity] };
+}
+
+export type SavingsPreview = { totalRows: number; validRows: SavingInput[]; errors: ImportError[]; duplicates: ImportError[] };
+
+// The type column takes the label the export writes ("Paper recycling") or the short key ("paper").
+const SAVING_TYPE_NAMES = new Map(Object.entries(SAVING_TYPES).flatMap(([key, { label }]) => [[key, key], [label.toLowerCase(), key]]));
+const cellNumber = (value: unknown) => typeof value === "number" ? value : trimValue(value) ? Number(trimValue(value).replaceAll(",", "")) : NaN;
+
+// One row of the Sustainability export and import layout; a saving not yet in KeeTrack has no number or issue date.
+export function savingToRaw(saving: SavingInput & Partial<Pick<Saving, "number" | "issuedDate">>): Record<SavingHeader, string | number> {
+  return {
+    certificate_no: saving.number ?? "", quarter: quarterLabel(quarterOf(saving.date)), date: saving.date, type: SAVING_TYPES[saving.type].label, description: saving.description ?? "",
+    quantity: saving.quantity, unit: saving.unit, kg_co2e_per_unit: saving.factor, kg_co2e_saved: savingKg(saving), cost_saving_usd: saving.costSaving ?? "", site: saving.site ?? "", evidence: saving.evidence ?? "", issued_date: saving.issuedDate ?? "",
+  };
+}
+
+const savingKey = (saving: SavingInput) => [saving.type, saving.date, saving.quantity, saving.unit, saving.description ?? ""].join("|").toLowerCase();
+
+// Rows in the Sustainability export's layout. Nothing already in KeeTrack is overwritten: a known certificate number, or
+// the same type, date, quantity and description, is skipped, so re-importing an export or a sample adds nothing twice.
+// Every other row gets the next ENV number when imported. firstRow is the file row of the first data row; issues name the
+// Savings sheet because they share one exception list with register rows.
+export function validateSavingRows(rows: Record<string, unknown>[], existing: Saving[] = [], firstRow = 2): SavingsPreview {
+  const errors: ImportError[] = [];
+  const duplicates: ImportError[] = [];
+  const validRows: SavingInput[] = [];
+  const numbers = new Set(existing.map((saving) => saving.number.toLowerCase()));
+  const keys = new Set(existing.map(savingKey));
+  // Excel keeps formatted but empty rows at the bottom of a sheet; they are not mistakes.
+  const filled = rows.map((raw, index) => ({ raw, rowNumber: index + firstRow })).filter(({ raw }) => Object.values(raw).some((value) => trimValue(value)));
+  for (const { raw, rowNumber } of filled) {
+    const number = trimValue(raw.certificate_no).toLowerCase();
+    if (number && numbers.has(number)) { duplicates.push(importError(rowNumber, "certificate_no is already in KeeTrack; skipped without overwrite", "Savings · certificate_no", raw)); continue; }
+    const parsed = parseSaving({
+      type: SAVING_TYPE_NAMES.get(trimValue(raw.type).toLowerCase()), date: parseDateCell(raw.date), quantity: cellNumber(raw.quantity), unit: trimValue(raw.unit), factor: cellNumber(raw.kg_co2e_per_unit),
+      costSaving: trimValue(raw.cost_saving_usd) ? cellNumber(raw.cost_saving_usd) : undefined, description: trimValue(raw.description), site: trimValue(raw.site), evidence: trimValue(raw.evidence),
+    });
+    if (!parsed.saving) { errors.push(importError(rowNumber, parsed.error ?? "Check this row.", "Savings", raw)); continue; }
+    const key = savingKey(parsed.saving);
+    if (keys.has(key)) { duplicates.push(importError(rowNumber, "the same saving (type, date, quantity, description) is already in KeeTrack or this file; skipped", "Savings", raw)); continue; }
+    keys.add(key);
+    if (number) numbers.add(number);
+    validRows.push(parsed.saving);
+  }
+  return { totalRows: filled.length, validRows, errors, duplicates };
+}
+
+// Oldest first, so the new certificate numbers run in date order.
+export function importSavings(state: AppState, rows: SavingInput[], actor = state.role, timestamp = nowIso()): AppState {
+  return [...rows].sort((a, b) => a.date.localeCompare(b.date)).reduce((current, row) => saveSaving(current, row, undefined, actor, timestamp), state);
 }
 
 // Deletes the record with everything hanging off it; setting it to Retired is the way to keep its history.

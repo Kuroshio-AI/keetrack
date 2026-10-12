@@ -1,4 +1,4 @@
-import { addDays } from "./domain";
+import { addDays, quarterOf, quarterRange, type SavingInput } from "./domain";
 import { REGISTER_HEADERS, type RegisterRow } from "./types";
 
 export type SampleId = "1" | "2";
@@ -19,6 +19,22 @@ export function sampleRows(demoDate: string, sample: SampleId = "1"): RegisterRo
     { assetRef: "RAS-009", recordType: "equipment", assetType: "Rope Access System", site: "Harbour Plant", owner: "Jon Bell", assignedEngineer: "Priya Das", inspectionDueDate: addDays(demoDate, -1), inspectionIntervalMonths: 12, status: "Active" },
     { assetRef: "CERT-018", recordType: "equipment", assetType: "Roof Access Kit", site: "East Yard", owner: "Maya Singh", certificateNo: "CERT-2026-0018", certificateIssuedDate: addDays(demoDate, -30), certificateExpiryDate: addDays(demoDate, 335), status: "Active" },
     { assetRef: "HAR-004", recordType: "equipment", assetType: "Full Body Harness", site: "Northpoint Works", owner: "Rory Chen", serialNo: "FBH-004-22", status: "Retired" },
+  ];
+}
+
+// Fictional savings on the sample sites, all in the demo date's quarter: a few days back, but never before the quarter starts.
+export function sampleSavings(demoDate: string, sample: SampleId = "1"): SavingInput[] {
+  const [quarterStart] = quarterRange(quarterOf(demoDate));
+  const daysBack = (days: number) => { const date = addDays(demoDate, -days); return date < quarterStart ? quarterStart : date; };
+  if (sample === "2") return [
+    { type: "pallets", date: daysBack(2), quantity: 24, unit: "pallets", factor: 2.1752, description: "Damaged pallets repaired and reused", site: "Riverside Depot", costSaving: 216 },
+    { type: "deliveries", date: daysBack(6), quantity: 860, unit: "km avoided", factor: 0.6337, description: "Weekly Riverside runs combined into one", site: "Riverside Depot" },
+    { type: "other", date: daysBack(11), quantity: 300, unit: "kg", factor: 1.5, description: "Steel offcuts sent for recycling", site: "Riverside Depot", evidence: "Demo scrap note SN-0311" },
+  ];
+  return [
+    { type: "paper", date: daysBack(1), quantity: 420, unit: "kg", factor: 0.94, description: "Archived job files shredded and recycled", site: "Northpoint Works", evidence: "Demo recycler note DRN-1042" },
+    { type: "pallets", date: daysBack(4), quantity: 18, unit: "pallets", factor: 2.1752, description: "Damaged pallets repaired and reused", site: "Harbour Plant", costSaving: 162 },
+    { type: "deliveries", date: daysBack(9), quantity: 1250, unit: "km avoided", factor: 0.6337, description: "Two East Yard deliveries merged into one", site: "East Yard" },
   ];
 }
 

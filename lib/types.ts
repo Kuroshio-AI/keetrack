@@ -17,6 +17,10 @@ export const REGISTER_HEADERS = [
 ] as const;
 
 export type RegisterHeader = (typeof REGISTER_HEADERS)[number];
+
+// The Sustainability export's columns; the Import tab reads the same layout back.
+export const SAVING_HEADERS = ["certificate_no", "quarter", "date", "type", "description", "quantity", "unit", "kg_co2e_per_unit", "kg_co2e_saved", "cost_saving_usd", "site", "evidence", "issued_date"] as const;
+export type SavingHeader = (typeof SAVING_HEADERS)[number];
 export type RecordType = "equipment" | "licence";
 export type AssetStatus = "Active" | "Retired";
 export type Role = "Admin" | "Engineer" | "Reviewer" | "Manager";

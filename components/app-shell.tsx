@@ -36,7 +36,7 @@ const nav = [
 ] as const;
 
 const titles: Record<string, { eyebrow: string; title: string; description: string }> = {
-  import: { eyebrow: "Register intake", title: "Import register", description: "Validate a local register and review the rows before importing." },
+  import: { eyebrow: "Data intake", title: "Import", description: "Validate a register or sustainability savings spreadsheet and review the rows before importing." },
   dashboard: { eyebrow: "Operations overview", title: "Dashboard", description: "Deadlines, review work and recent movement for this demo date." },
   register: { eyebrow: "Asset register", title: "Asset register", description: "Search equipment, licences and their linked obligations." },
   inspections: { eyebrow: "Field work", title: "Inspections", description: "Draft a mobile-friendly checklist, then send it for review." },
