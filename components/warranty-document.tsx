@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import type { WarrantyDetails } from "@/lib/domain";
 import { formatDate, formatLocalDate } from "@/lib/utils";
 
+export const KEE_ADDRESS = "PO Box 18448, Dubai Investment Park, near Green Community, Dubai, UAE · www.keesafety.ae · T +971-4-8859066 · menasales@keesafety.com · uaesales@keesafety.com";
+
 export type WarrantyPrint = WarrantyDetails & { assetRef: string; serialNo?: string; site: string; owner: string; asOf: string; qr: string };
 
 export function Signature({ label, name, date, image }: { label: string; name: string; date?: string; image?: string }) {
@@ -14,7 +16,7 @@ function Page({ number, typedIn, className = "", children }: { number: number; t
     {children}
     <footer className="mt-auto border-t border-line pt-2 text-[10px] leading-relaxed text-slate-500">
       <div className="flex justify-between gap-4 font-semibold text-navy"><span>Kee Safety LLC · Separating People From Hazards</span><span>Page {number} of 2</span></div>
-      <div>PO Box 18448, Dubai Investment Park, near Green Community, Dubai, UAE · www.keesafety.ae · T +971-4-8859066 · menasales@keesafety.com · uaesales@keesafety.com</div>
+      <div>{KEE_ADDRESS}</div>
       <div>Demo warranty · {typedIn ? "details typed in from the original warranty" : "fictional data"}. QR verification is a signed snapshot valid for 24 hours.</div>
     </footer>
   </div></div>;

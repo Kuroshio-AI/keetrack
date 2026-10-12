@@ -17,6 +17,8 @@ import type {
   RegisterRow,
   RecordType,
   Role,
+  Saving,
+  SavingType,
   Warranty,
 } from "./types";
 import { REGISTER_HEADERS } from "./types";
@@ -114,7 +116,16 @@ export function validateStoredState(value: unknown): value is AppState {
       && (alert.emailSentAt === undefined || isTimestamp(alert.emailSentAt))
       && (alert.whatsappSentAt === undefined || isTimestamp(alert.whatsappSentAt));
   };
+  const isSaving = (item: unknown): boolean => {
+    if (!item || typeof item !== "object") return false;
+    const saving = item as Partial<Saving>;
+    return isText(saving.id) && isText(saving.number) && isText(saving.unit) && isDateString(saving.issuedDate) && isTimestamp(saving.createdAt) && isTimestamp(saving.updatedAt)
+      && Boolean(parseSaving(item as Record<string, unknown>).saving);
+  };
+  const counters = candidate.savingCounters;
   return candidate.version === STORAGE_VERSION
+    && (candidate.savings === undefined || (Array.isArray(candidate.savings) && candidate.savings.every(isSaving)))
+    && (counters === undefined || (Boolean(counters) && typeof counters === "object" && !Array.isArray(counters) && Object.values(counters).every((count) => Number.isSafeInteger(count) && count >= 0)))
     && isDateString(candidate.demoDate)
     && isRole(candidate.role)
     && Array.isArray(candidate.records) && candidate.records.every(isRecord)
@@ -503,6 +514,80 @@ export function removeWarranty(state: AppState, assetId: string, actor = state.r
   if (!record?.warranty || record.warranty.revokedDate) return state;
   const event = activity("Warranty removed", `${record.assetRef} · ${record.warranty.number}`, actor, timestamp);
   return recalculateAlerts({ ...state, records: state.records.map((item) => item.id === assetId ? { ...item, warranty: undefined, activity: [event, ...item.activity], updatedAt: timestamp } : item), activity: [event, ...state.activity] }, timestamp);
+}
+
+// Default factors are worked back from Kee Safety's Q3 2026 initiatives deck (63.08 kg ÷ 29 pallets, 3,105.08 kg ÷ 4,900 km).
+// They stay editable on every saving; confirm their sources with Kee Safety before relying on them.
+export const SAVING_TYPES: Record<SavingType, { label: string; unit: string; factor?: number }> = {
+  paper: { label: "Paper recycling", unit: "kg", factor: 0.94 },
+  pallets: { label: "Pallet reuse", unit: "pallets", factor: 2.1752 },
+  deliveries: { label: "Delivery consolidation", unit: "km avoided", factor: 0.6337 },
+  other: { label: "Other", unit: "" },
+};
+
+export type SavingInput = Pick<Saving, "type" | "date" | "quantity" | "unit" | "factor" | "description" | "site" | "evidence" | "costSaving">;
+
+const SAVING_OPTIONAL = ["description", "site", "evidence"] as const;
+const isAmount = (value: unknown, max: number): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= max;
+
+// Used for the typed-in form and for stored or restored workspaces, so it trusts nothing.
+export function parseSaving(raw: Record<string, unknown>): { saving?: SavingInput; error?: string } {
+  const type = raw.type;
+  if (typeof type !== "string" || !Object.hasOwn(SAVING_TYPES, type)) return { error: "Choose a saving type." };
+  const savingType = type as SavingType;
+  if (!isDateString(raw.date)) return { error: "Date must be a valid date." };
+  if (!isAmount(raw.quantity, 10_000_000) || raw.quantity === 0) return { error: "Quantity must be more than 0 (up to 10,000,000)." };
+  if (!isAmount(raw.factor, 10_000)) return { error: "CO₂e factor must be 0 to 10,000 kg per unit." };
+  if (raw.costSaving !== undefined && !isAmount(raw.costSaving, 10_000_000)) return { error: "Cost saving must be 0 to 10,000,000." };
+  const unit = savingType === "other" ? trimValue(raw.unit) : SAVING_TYPES[savingType].unit;
+  if (!unit || unit.length > 20 || /[<>]/.test(unit)) return { error: "Unit is required for Other (up to 20 characters, no < or >)." };
+  const saving: SavingInput = { type: savingType, date: raw.date, quantity: raw.quantity, unit, factor: raw.factor, ...(raw.costSaving !== undefined ? { costSaving: raw.costSaving } : {}) };
+  for (const field of SAVING_OPTIONAL) {
+    if (raw[field] !== undefined && typeof raw[field] !== "string") return { error: `${field} must be text.` };
+    const value = trimValue(raw[field]);
+    if (value.length > 160 || /[<>]/.test(value)) return { error: "Description, site and evidence are limited to 160 characters, no < or >." };
+    if (value) saving[field] = value;
+  }
+  return { saving };
+}
+
+// Rounded to grams so 560 × 0.94 reads 526.4, not 526.3999999.
+export const savingKg = ({ quantity, factor }: Pick<Saving, "quantity" | "factor">) => Math.round(quantity * factor * 1000) / 1000;
+export const totalKg = (savings: Saving[]) => Math.round(savings.reduce((sum, saving) => sum + savingKg(saving), 0) * 1000) / 1000;
+
+// "2026-Q3", which sorts as text.
+export const quarterOf = (date: string) => `${date.slice(0, 4)}-Q${Math.ceil(Number(date.slice(5, 7)) / 3)}`;
+export const quarterLabel = (quarter: string) => `${quarter.slice(5)} ${quarter.slice(0, 4)}`;
+export function quarterRange(quarter: string): [string, string] {
+  const start = `${quarter.slice(0, 4)}-${String(Number(quarter.slice(6)) * 3 - 2).padStart(2, "0")}-01`;
+  return [start, addDays(addMonthsClamped(start, 3), -1)];
+}
+
+// Adds when id is undefined. An edit keeps the number and issue date that may already be printed.
+export function saveSaving(state: AppState, input: SavingInput, id?: string, actor = state.role, timestamp = nowIso()): AppState {
+  const savings = state.savings ?? [];
+  const existing = id === undefined ? undefined : savings.find((saving) => saving.id === id);
+  if (id !== undefined && !existing) throw new Error("That saving no longer exists. Close the form and try again.");
+  let counters = state.savingCounters ?? {};
+  let base: Pick<Saving, "id" | "number" | "issuedDate" | "createdAt">;
+  if (existing) base = { id: existing.id, number: existing.number, issuedDate: existing.issuedDate, createdAt: existing.createdAt };
+  else {
+    const year = state.demoDate.slice(0, 4);
+    const prefix = `ENV-${year}-`;
+    // The counter guards against reuse after a removal; the scan covers workspaces restored from older backups.
+    const next = Math.max(counters[year] ?? 0, ...savings.filter((saving) => saving.number.startsWith(prefix)).map((saving) => Number(saving.number.slice(prefix.length)) || 0)) + 1;
+    counters = { ...counters, [year]: next };
+    base = { id: makeId("saving"), number: `${prefix}${String(next).padStart(3, "0")}`, issuedDate: state.demoDate, createdAt: timestamp };
+  }
+  const saving: Saving = { ...base, ...input, updatedAt: timestamp };
+  const event = activity(existing ? "Saving updated" : "Saving recorded", `${saving.number} · ${SAVING_TYPES[saving.type].label} · ${savingKg(saving)} kg CO₂e`, actor, timestamp);
+  return { ...state, savings: existing ? savings.map((item) => item.id === saving.id ? saving : item) : [saving, ...savings], savingCounters: counters, activity: [event, ...state.activity] };
+}
+
+export function removeSaving(state: AppState, id: string, actor = state.role, timestamp = nowIso()): AppState {
+  const saving = state.savings?.find((item) => item.id === id);
+  if (!saving) return state;
+  return { ...state, savings: state.savings?.filter((item) => item.id !== id), activity: [activity("Saving removed", `${saving.number} · ${SAVING_TYPES[saving.type].label}`, actor, timestamp), ...state.activity] };
 }
 
 // Deletes the record with everything hanging off it; setting it to Retired is the way to keep its history.

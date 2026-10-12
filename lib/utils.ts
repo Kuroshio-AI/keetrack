@@ -20,6 +20,10 @@ export function formatLocalDate(iso: string): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
+// Quantities and kg CO₂e: "3,105.13", never more than two decimals.
+export const formatAmount = (value: number) => value.toLocaleString("en-GB", { maximumFractionDigits: 2 });
+export const formatUsd = (value: number) => value.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
 export function formatDateTime(iso: string): string {
   const date = new Date(iso);
   return `${formatLocalDate(iso)}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;

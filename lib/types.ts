@@ -71,6 +71,30 @@ export type Warranty = {
   revokedDate?: string;
 };
 
+export type SavingType = "paper" | "pallets" | "deliveries" | "other";
+
+// An environmental saving typed in from Kee Safety's own tracking. CO₂e is always quantity × factor, never stored.
+export type Saving = {
+  id: string;
+  // ENV-2026-001; never reused after a removal.
+  number: string;
+  type: SavingType;
+  // Activity date; its quarter groups the totals.
+  date: string;
+  quantity: number;
+  unit: string;
+  // kg CO₂e per unit.
+  factor: number;
+  description?: string;
+  site?: string;
+  evidence?: string;
+  costSaving?: number;
+  // Demo date it was first saved; printed as the certificate date.
+  issuedDate: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AssetRecord = RegisterRow & {
   id: string;
   warranty?: Warranty;
@@ -148,6 +172,10 @@ export type AppState = {
   inspections: Inspection[];
   alerts: Alert[];
   activity: Activity[];
+  // Optional so workspaces and backups saved before Sustainability stay valid.
+  savings?: Saving[];
+  // Last saving number issued per year, so a removed saving's certificate number is never handed out again.
+  savingCounters?: Record<string, number>;
 };
 
 export type ImportError = {
