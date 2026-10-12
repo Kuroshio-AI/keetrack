@@ -32,7 +32,7 @@ npm run build
 6. Open **Demo Controls → WhatsApp Cloud API** to check the server-selected template and masked recipient. On Alerts, click **Send WhatsApp alert** on one alert. KTrack sends only the five approved alert details and records local API acceptance; delivery remains unconfirmed.
 7. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
-Production demo: [kuroshio-ktrack.vercel.app](https://kuroshio-ktrack.vercel.app) (the old keetrack.vercel.app address still works) · source: [github.com/Kuroshio-AI/ktrack](https://github.com/Kuroshio-AI/ktrack).
+Production demo: [kuroshio-ktrack.vercel.app](https://kuroshio-ktrack.vercel.app) (the old keetrack.vercel.app address still works) · source: [github.com/Kuroshio-AI/ktrack-demo](https://github.com/Kuroshio-AI/ktrack-demo). This repo is the sales demo; the production build lives in the private Kuroshio-AI/ktrack repo.
 
 ## Register format and limits
 
