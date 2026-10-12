@@ -63,7 +63,7 @@ const xlsxFile = (sheet: string, matrix: unknown[][]) => {
   return new File([XLSX.write(book, { bookType: "xlsx", type: "array" })], "upload.xlsx");
 };
 
-test("an exported Savings sheet imports back, skipping savings already in KeeTrack", async () => {
+test("an exported Savings sheet imports back, skipping savings already in KTrack", async () => {
   const deck = [parseSaving(paper).saving!, parseSaving({ type: "deliveries", date: "2026-09-25", quantity: 4900, factor: 0.6337 }).saving!, parseSaving({ type: "pallets", date: "2026-09-30", quantity: 29, factor: 2.1752, costSaving: 261 }).saving!];
   const state = importSavings(createInitialState("2026-10-12"), [...deck].reverse(), "Admin", at);
   assert.deepEqual(state.savings!.map((saving) => [saving.number, saving.date]).reverse(), [["ENV-2026-001", "2026-09-18"], ["ENV-2026-002", "2026-09-25"], ["ENV-2026-003", "2026-09-30"]], "numbers follow the dates");

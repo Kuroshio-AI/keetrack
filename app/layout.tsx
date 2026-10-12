@@ -6,8 +6,8 @@ import "./globals.css";
 const plex = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-plex" });
 
 export const metadata: Metadata = {
-  title: "KeeTrack · Operations Console",
-  description: "A local-first Kee Safety operations demo.",
+  title: "KTrack · Operations Console",
+  description: "KTrack (Kuroshio Track): a local-first Kee Safety operations demo.",
   robots: { index: false, follow: false },
   icons: { icon: "/icon.svg" },
 };

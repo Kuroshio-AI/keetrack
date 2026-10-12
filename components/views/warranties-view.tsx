@@ -77,7 +77,7 @@ export function WarrantiesView() {
     update((current) => revokeWarranty(current, record.id));
   }
   function remove(record: AssetRecord, warranty: WarrantyDetails) {
-    if (!window.confirm(`Remove warranty ${warranty.number} from ${record.assetRef}?${record.certificates.length ? " KeeTrack will show the warranty from its first certificate again." : ""}`)) return;
+    if (!window.confirm(`Remove warranty ${warranty.number} from ${record.assetRef}?${record.certificates.length ? " KTrack will show the warranty from its first certificate again." : ""}`)) return;
     if (update((current) => removeWarranty(current, record.id)) && editing === record.id) close();
   }
 

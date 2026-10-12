@@ -37,7 +37,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const update = useCallback((updater: (current: AppState) => AppState): boolean => {
-    if (!hydrated) { setSaveError("KeeTrack is still restoring this browser workspace."); return false; }
+    if (!hydrated) { setSaveError("KTrack is still restoring this browser workspace."); return false; }
     if (storageWarning) { setSaveError("Storage recovery is required before normal changes can be saved."); return false; }
     try {
       const next = recalculateAlerts(updater(latestState.current));

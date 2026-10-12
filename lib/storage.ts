@@ -10,10 +10,10 @@ export function loadState(storage: Pick<Storage, "getItem"> | undefined, demoDat
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return { state: initial, recovered: false };
     const parsed: unknown = JSON.parse(raw);
-    if (!validateStoredState(parsed)) return { state: initial, recovered: true, error: "Stored KeeTrack data is unsupported or corrupted. Start a fresh demo or recover manually." };
+    if (!validateStoredState(parsed)) return { state: initial, recovered: true, error: "Stored KTrack data is unsupported or corrupted. Start a fresh demo or recover manually." };
     return { state: recalculateAlerts(parsed), recovered: false };
   } catch {
-    return { state: initial, recovered: true, error: "Stored KeeTrack data could not be read. Start a fresh demo or recover manually." };
+    return { state: initial, recovered: true, error: "Stored KTrack data could not be read. Start a fresh demo or recover manually." };
   }
 }
 
@@ -23,6 +23,6 @@ export function commitState(storage: Pick<Storage, "setItem"> | undefined, state
     storage.setItem(STORAGE_KEY, JSON.stringify(state));
     return { ok: true };
   } catch {
-    return { ok: false, error: "KeeTrack could not save this change. Your previous state remains active." };
+    return { ok: false, error: "KTrack could not save this change. Your previous state remains active." };
   }
 }

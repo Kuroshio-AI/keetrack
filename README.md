@@ -1,6 +1,6 @@
-# KeeTrack demo
+# KTrack demo
 
-KeeTrack is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS and Meta WhatsApp Cloud API are available only for explicitly requested single-alert actions; there is no database or background messaging integration.
+KTrack (Kuroshio Track) is a local-first Kee Safety operations console for fictional register data. The default route is `/dashboard`; records, inspections, alerts and certificates are stored in one versioned `localStorage` document. EmailJS and Meta WhatsApp Cloud API are available only for explicitly requested single-alert actions; there is no database or background messaging integration.
 
 ## Setup
 
@@ -28,11 +28,11 @@ npm run build
 2. Review the six valid rows and click **Import valid rows**. Open Dashboard to see the 30-day, 7-day, today and overdue queues.
 3. Open Inspections, choose an active record, complete the checklist and submit it. A Reviewer or Admin can return it with a mandatory comment, or issue a certificate with an explicit expiry.
 4. Open Certificates to print a branded DEMO certificate, create a QR snapshot and open the public `/verify?token=...` page. Tokens are signed, immutable payloads with a 24-hour TTL.
-5. On Alerts, an Admin, Engineer or Reviewer can click **Send email** on one alert. The EmailJS template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KeeTrack sends only when you click and has no automatic or bulk send action.
-6. Open **Demo Controls → WhatsApp Cloud API** to check the server-selected template and masked recipient. On Alerts, click **Send WhatsApp alert** on one alert. KeeTrack sends only the five approved alert details and records local API acceptance; delivery remains unconfirmed.
+5. On Alerts, an Admin, Engineer or Reviewer can click **Send email** on one alert. The EmailJS template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KTrack sends only when you click and has no automatic or bulk send action.
+6. Open **Demo Controls → WhatsApp Cloud API** to check the server-selected template and masked recipient. On Alerts, click **Send WhatsApp alert** on one alert. KTrack sends only the five approved alert details and records local API acceptance; delivery remains unconfirmed.
 7. Use Demo Controls to download blank templates, set the app-only date, exercise deadline tiers, submit an explicit all-pass scenario, or reset the demo after confirmation. Reset returns to the empty Dashboard.
 
-Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [github.com/Kuroshio-AI/keetrack](https://github.com/Kuroshio-AI/keetrack).
+Production demo: [kuroshio-ktrack.vercel.app](https://kuroshio-ktrack.vercel.app) (the old keetrack.vercel.app address still works) · source: [github.com/Kuroshio-AI/ktrack](https://github.com/Kuroshio-AI/ktrack).
 
 ## Register format and limits
 
@@ -40,7 +40,7 @@ Production demo: [keetrack.vercel.app](https://keetrack.vercel.app) · source: [
 
 Sustainability savings use the layout the Sustainability page exports: `certificate_no`, `quarter`, `date`, `type`, `description`, `quantity`, `unit`, `kg_co2e_per_unit`, `kg_co2e_saved`, `cost_saving_usd`, `site`, `evidence`, `issued_date`. `quarter`, `kg_co2e_saved` and `issued_date` are worked out again on import. In a CSV the savings block follows the register after a blank row, starting at its own header row; the Demo Controls templates and both filled samples carry both. A known certificate number, or the same type, date, quantity and description, is skipped rather than overwritten, and every new saving gets the next `ENV-<year>-<seq>` number.
 
-The browser saves a complete next-state JSON document before updating the visible state. Unsupported or corrupted stored data enters recovery mode and blocks ordinary writes until **Start fresh** is explicitly confirmed in Demo Controls. Reset clears only KeeTrack’s operational local data.
+The browser saves a complete next-state JSON document before updating the visible state. Unsupported or corrupted stored data enters recovery mode and blocks ordinary writes until **Start fresh** is explicitly confirmed in Demo Controls. Reset clears only KTrack’s operational local data.
 
 Inspection evidence is optional fictional demo data. Only image MIME types are accepted, with a 200KB per-image and 1MB total local cap. No inspection or approval history is invented by register import.
 
@@ -52,9 +52,9 @@ Future integrations such as a database, automated outbound delivery, customer id
 
 ## Manual alert email
 
-EmailJS uses the browser REST endpoint only after a user clicks **Send email** on an individual alert. The template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KeeTrack sends only the alert event, asset reference/type, site, owner, severity, due date, demo date, status and occurrence timestamp. Notes, inspection evidence and contact lists are never included. The shared EmailJS account and mailbox quota are a demo dependency, so configure the three public values in `.env.local`, do not commit account values, and expect no scheduled or background delivery. A provider acceptance is recorded in localStorage; network failures remain unconfirmed and require a deliberate manual retry.
+EmailJS uses the browser REST endpoint only after a user clicks **Send email** on an individual alert. The template has fixed To `devops@kuroshioai.com` and CC `noufal@kuroshioai.com`; KTrack sends only the alert event, asset reference/type, site, owner, severity, due date, demo date, status and occurrence timestamp. Notes, inspection evidence and contact lists are never included. The shared EmailJS account and mailbox quota are a demo dependency, so configure the three public values in `.env.local`, do not commit account values, and expect no scheduled or background delivery. A provider acceptance is recorded in localStorage; network failures remain unconfirmed and require a deliberate manual retry.
 
-The provider template is versioned at [`docs/emailjs-template.html`](docs/emailjs-template.html). Keep its settings as follows: subject `[KeeTrack Demo] {{event}} — {{asset_ref}}`, fixed To and Reply-To `devops@kuroshioai.com`, fixed CC `noufal@kuroshioai.com`, From Name `KeeTrack Demo`, the default EmailJS sender, blank BCC, and no auto-reply. Keep the template body limited to the allowlisted fields above.
+The provider template is versioned at [`docs/emailjs-template.html`](docs/emailjs-template.html). Keep its settings as follows: subject `[KTrack Demo] {{event}} — {{asset_ref}}`, fixed To and Reply-To `devops@kuroshioai.com`, fixed CC `noufal@kuroshioai.com`, From Name `KTrack Demo`, the default EmailJS sender, blank BCC, and no auto-reply. Keep the template body limited to the allowlisted fields above.
 
 ## WhatsApp Cloud API
 
@@ -84,4 +84,4 @@ For production, complete the local Meta app and business onboarding/migration be
 
 The optional `/api/webhooks/whatsapp` route supports Meta's verification challenge and signed event callbacks. Set `META_APP_SECRET` and `META_WHATSAPP_VERIFY_TOKEN` in the server environment, then configure that callback URL in the published Meta app. GET verification compares the token in constant time and returns the challenge as plain text. POST requests are accepted only with a valid `X-Hub-Signature-256` HMAC over the raw request bytes and a basic WhatsApp event envelope; unsigned callbacks are rejected.
 
-This demo authenticates and acknowledges valid callbacks only. It has no backend database: callback events are not persisted, do not trigger inbound replies or automatic messages, and are not used to mark local alerts delivered. Delivery remains unconfirmed in KeeTrack even when a webhook callback is received. Alert sending has no authentication or durable global rate limiting, so this flow suits the controlled demo only.
+This demo authenticates and acknowledges valid callbacks only. It has no backend database: callback events are not persisted, do not trigger inbound replies or automatic messages, and are not used to mark local alerts delivered. Delivery remains unconfirmed in KTrack even when a webhook callback is received. Alert sending has no authentication or durable global rate limiting, so this flow suits the controlled demo only.

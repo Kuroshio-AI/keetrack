@@ -85,7 +85,7 @@ export function SustainabilityView() {
         <div className="flex items-center gap-3"><Label htmlFor="saving-quarter">Quarter</Label><Select id="saving-quarter" className="h-8 w-auto py-0 font-semibold text-navy" value={quarter} onChange={(event) => setQuarter(event.target.value)}>{quarters.map((item) => <option key={item} value={item}>{quarterLabel(item)}</option>)}</Select></div>
         {/* One row, weight rising to the primary action on the right; full-width stack on phones. */}
         <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
-          <Button variant="outline" size="sm" disabled={!savings.length} onClick={() => downloadSavings(savings, `keetrack-savings-${todayString()}`)}><Download data-icon="inline-start" />Export .xlsx</Button>
+          <Button variant="outline" size="sm" disabled={!savings.length} onClick={() => downloadSavings(savings, `ktrack-savings-${todayString()}`)}><Download data-icon="inline-start" />Export .xlsx</Button>
           <Button variant="outline" size="sm" disabled={!rows.length} onClick={() => setPrinting({ quarter })}><Printer data-icon="inline-start" />Print {quarterLabel(quarter)}</Button>
           {canEdit && <Button size="sm" onClick={startAdd}><Plus data-icon="inline-start" />Add saving</Button>}
         </div>

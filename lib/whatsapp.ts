@@ -418,7 +418,7 @@ export async function handleWhatsAppTokenPost(request: Request, options: Handler
       signal: AbortSignal.timeout(10_000),
     });
     const value: unknown = response.ok ? await response.json() : undefined;
-    if (!isRecord(value) || value.id !== phoneNumberId) return json({ error: "Meta did not accept this token for the KeeTrack WhatsApp number." }, 400);
+    if (!isRecord(value) || value.id !== phoneNumberId) return json({ error: "Meta did not accept this token for the KTrack WhatsApp number." }, 400);
   } catch {
     return json({ error: "Meta could not be reached. Try again." }, 503);
   }

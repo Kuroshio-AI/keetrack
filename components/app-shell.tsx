@@ -98,7 +98,7 @@ function AppFrame({ initialView }: { initialView: string }) {
       <div className="flex items-center justify-between px-2">
         <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 focus-ring rounded-md">
           <span className="grid size-10 place-items-center rounded-xl bg-white text-[#0b3151] shadow-lg"><span className="text-xl font-black">K</span></span>
-          <span><span className="block text-[19px] font-bold tracking-[-.03em]">KeeTrack</span><span className="block text-[10px] font-bold uppercase tracking-[.15em] text-[#a8c7dd]">Kee Safety operations</span></span>
+          <span><span className="block text-[19px] font-bold tracking-[-.03em]">KTrack</span><span className="block text-[10px] font-bold uppercase tracking-[.15em] text-[#a8c7dd]">Kee Safety operations</span></span>
         </Link>
         <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 lg:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)}><X /></Button>
       </div>

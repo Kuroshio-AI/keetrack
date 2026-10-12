@@ -597,7 +597,7 @@ export type SavingsPreview = { totalRows: number; validRows: SavingInput[]; erro
 const SAVING_TYPE_NAMES = new Map(Object.entries(SAVING_TYPES).flatMap(([key, { label }]) => [[key, key], [label.toLowerCase(), key]]));
 const cellNumber = (value: unknown) => typeof value === "number" ? value : trimValue(value) ? Number(trimValue(value).replaceAll(",", "")) : NaN;
 
-// One row of the Sustainability export and import layout; a saving not yet in KeeTrack has no number or issue date.
+// One row of the Sustainability export and import layout; a saving not yet in KTrack has no number or issue date.
 export function savingToRaw(saving: SavingInput & Partial<Pick<Saving, "number" | "issuedDate">>): Record<SavingHeader, string | number> {
   return {
     certificate_no: saving.number ?? "", quarter: quarterLabel(quarterOf(saving.date)), date: saving.date, type: SAVING_TYPES[saving.type].label, description: saving.description ?? "",
@@ -607,7 +607,7 @@ export function savingToRaw(saving: SavingInput & Partial<Pick<Saving, "number" 
 
 const savingKey = (saving: SavingInput) => [saving.type, saving.date, saving.quantity, saving.unit, saving.description ?? ""].join("|").toLowerCase();
 
-// Rows in the Sustainability export's layout. Nothing already in KeeTrack is overwritten: a known certificate number, or
+// Rows in the Sustainability export's layout. Nothing already in KTrack is overwritten: a known certificate number, or
 // the same type, date, quantity and description, is skipped, so re-importing an export or a sample adds nothing twice.
 // Every other row gets the next ENV number when imported. firstRow is the file row of the first data row; issues name the
 // Savings sheet because they share one exception list with register rows.
@@ -621,14 +621,14 @@ export function validateSavingRows(rows: Record<string, unknown>[], existing: Sa
   const filled = rows.map((raw, index) => ({ raw, rowNumber: index + firstRow })).filter(({ raw }) => Object.values(raw).some((value) => trimValue(value)));
   for (const { raw, rowNumber } of filled) {
     const number = trimValue(raw.certificate_no).toLowerCase();
-    if (number && numbers.has(number)) { duplicates.push(importError(rowNumber, "certificate_no is already in KeeTrack; skipped without overwrite", "Savings · certificate_no", raw)); continue; }
+    if (number && numbers.has(number)) { duplicates.push(importError(rowNumber, "certificate_no is already in KTrack; skipped without overwrite", "Savings · certificate_no", raw)); continue; }
     const parsed = parseSaving({
       type: SAVING_TYPE_NAMES.get(trimValue(raw.type).toLowerCase()), date: parseDateCell(raw.date), quantity: cellNumber(raw.quantity), unit: trimValue(raw.unit), factor: cellNumber(raw.kg_co2e_per_unit),
       costSaving: trimValue(raw.cost_saving_usd) ? cellNumber(raw.cost_saving_usd) : undefined, description: trimValue(raw.description), site: trimValue(raw.site), evidence: trimValue(raw.evidence),
     });
     if (!parsed.saving) { errors.push(importError(rowNumber, parsed.error ?? "Check this row.", "Savings", raw)); continue; }
     const key = savingKey(parsed.saving);
-    if (keys.has(key)) { duplicates.push(importError(rowNumber, "the same saving (type, date, quantity, description) is already in KeeTrack or this file; skipped", "Savings", raw)); continue; }
+    if (keys.has(key)) { duplicates.push(importError(rowNumber, "the same saving (type, date, quantity, description) is already in KTrack or this file; skipped", "Savings", raw)); continue; }
     keys.add(key);
     if (number) numbers.add(number);
     validRows.push(parsed.saving);
