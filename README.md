@@ -34,6 +34,17 @@ npm run build
 
 Production demo: [kuroshio-ktrack.vercel.app](https://kuroshio-ktrack.vercel.app) (the old keetrack.vercel.app address still works) · source: [github.com/Kuroshio-AI/ktrack-demo](https://github.com/Kuroshio-AI/ktrack-demo). This repo is the sales demo; the production build lives in the private Kuroshio-AI/ktrack repo.
 
+## FLS profile (second client)
+
+The same code also builds a Fire & Life Safety certificate tracker for a Dubai facilities client. Set `NEXT_PUBLIC_CLIENT=fls` at build time, or run `npm run dev:fls` locally on port 3001. That build has five pages: Dashboard, Buildings, Alerts, Import and Demo Controls. It shows no Kee branding. Without the flag the Kee demo builds exactly as before.
+
+- **Import** reads the client's own `FLS DCD (AMC) certificate tracker` .xlsx as it is. That means the title block, the header row (`Sl. No`, `Building`, `Frequency`, `Date of Issue`, `Date of Expiry`, `Days Remaining for Expiry`, `Due Date`, `Days Remaining for Due Date`, `Service Provider`, `Remarks`) and the label rows that start a new group of sites. Days remaining and the due date (expiry − 15) are worked out again, never read from the sheet. When an updated sheet is uploaded again, it updates the buildings already in KTrack.
+- **Muting.** A building is muted when its provider is `NOT Under Us`, or its remarks say Closed, Under Renovation or Client will renew. Muted buildings never alert. You can toggle it per building.
+- **Colours** follow the sheet: green from 15 days, amber 1 to 14, red on the day and after.
+- **Alerts** come 30 days, 15 days (the due date), 7 days and 0 days before expiry, and again once overdue. The Dashboard digest card holds the morning message and opens it in WhatsApp or email to send by hand. There is still no scheduled or bulk sending.
+- **WhatsApp template.** Give the FLS deployment its own approved template via `META_WHATSAPP_TEMPLATE_NAME`, with the same five parameters (event, building, category, severity, due date).
+- **Client data.** The client's files stay in the git-ignored `contextforclient/` folder. Never commit them: this repo is public.
+
 ## Register format and limits
 
 `.xlsx` files contain a worksheet named `Register`, a worksheet named `Savings`, or both. CSV files use the same fixed UTF-8 headers in the template: `asset_ref`, `record_type`, `asset_type`, `site`, `owner`, `serial_no`, `assigned_engineer`, `inspection_due_date`, `inspection_interval_months`, `licence_expiry_date`, `certificate_no`, `certificate_issued_date`, `certificate_expiry_date`, `retirement_due_date`, `status`. `asset_ref`, `record_type`, `asset_type`, `site` and `owner` are required. Date values are stored as calendar strings (`YYYY-MM-DD`), certificate fields are all-or-nothing, and certificate expiry cannot precede issue. Formula cells, malformed layouts, duplicate trimmed case-insensitive asset refs, files over 2MB and imports exceeding 500 total register records are rejected or reported per row. Duplicate rows never overwrite existing records.

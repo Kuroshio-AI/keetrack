@@ -45,6 +45,9 @@ export type RegisterRow = {
   certificateIssuedDate?: string;
   certificateExpiryDate?: string;
   retirementDueDate?: string;
+  // FLS only: the certificate's issue date and the sheet's Remarks column.
+  licenceIssuedDate?: string;
+  remarks?: string;
   status: AssetStatus;
 };
 
@@ -194,4 +197,6 @@ export type ImportPreview = {
   validRows: RegisterRow[];
   errors: ImportError[];
   duplicates: ImportError[];
+  // FLS only: rows for buildings already in KTrack whose sheet values changed.
+  updates?: RegisterRow[];
 };

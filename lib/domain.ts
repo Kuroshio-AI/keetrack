@@ -23,6 +23,7 @@ import type {
   Warranty,
 } from "./types";
 import { REGISTER_HEADERS } from "./types";
+import { FLS_DUE_LEAD_DAYS, IS_FLS } from "./client";
 
 export const STORAGE_KEY = "keetrack-demo-state";
 export const STORAGE_VERSION = 1 as const;
@@ -93,7 +94,7 @@ export function validateStoredState(value: unknown): value is AppState {
       && isTimestamp(record.createdAt) && isTimestamp(record.updatedAt)
       && (record.serialNo === undefined || isText(record.serialNo)) && (record.assignedEngineer === undefined || isText(record.assignedEngineer))
       && (record.inspectionIntervalMonths === undefined || (Number.isSafeInteger(record.inspectionIntervalMonths) && record.inspectionIntervalMonths > 0))
-      && isOptionalDate(record.inspectionDueDate) && isOptionalDate(record.licenceExpiryDate) && isOptionalDate(record.certificateIssuedDate) && isOptionalDate(record.certificateExpiryDate) && isOptionalDate(record.retirementDueDate)
+      && isOptionalDate(record.inspectionDueDate) && isOptionalDate(record.licenceIssuedDate) && isOptionalDate(record.licenceExpiryDate) && (record.remarks === undefined || isText(record.remarks)) && isOptionalDate(record.certificateIssuedDate) && isOptionalDate(record.certificateExpiryDate) && isOptionalDate(record.retirementDueDate)
       && (record.warranty === undefined || Boolean(record.warranty && typeof record.warranty === "object" && parseWarranty(record.warranty as Record<string, unknown>).warranty))
       && Array.isArray(record.certificates) && record.certificates.every(isCertificate) && Array.isArray(record.activity) && record.activity.every(isActivity);
   };
@@ -276,13 +277,17 @@ export function effectiveCertificateStatus(certificate: Certificate, demoDate: s
   return certificate.status === "Valid" && certificate.expiryDate < demoDate ? "Expired" : certificate.status;
 }
 
-type Deadline = { key: string; event: string; date: string; severity: AlertSeverity };
+// tiers limits which tiers raise an alert; unset means all four.
+type Deadline = { key: string; event: string; date: string; severity: AlertSeverity; tiers?: DeadlineTier[] };
 
 function recordDeadlines(record: AssetRecord, demoDate: string): Deadline[] {
   if (record.status === "Retired") return [];
   const deadlines: Deadline[] = [];
   if (record.inspectionDueDate) deadlines.push({ key: "inspection", event: "Inspection due", date: record.inspectionDueDate, severity: "warning" });
-  if (record.licenceExpiryDate) deadlines.push({ key: "licence", event: "Licence expiry", date: record.licenceExpiryDate, severity: "critical" });
+  if (record.licenceExpiryDate) deadlines.push({ key: "licence", event: IS_FLS ? "Certificate expiry" : "Licence expiry", date: record.licenceExpiryDate, severity: "critical" });
+  // FLS renews by its Due Date (expiry - 15): alerting on that day and after it gives the 30/15/7/0-day reminders the sheet's owner asked for.
+  // Once the certificate has expired, its expiry alert says it all, so the renewal one stops.
+  if (IS_FLS && record.licenceExpiryDate && record.licenceExpiryDate >= demoDate) deadlines.push({ key: "renewal", event: "Renewal due", date: addDays(record.licenceExpiryDate, -FLS_DUE_LEAD_DAYS), severity: "warning", tiers: ["today", "overdue"] });
   const currentCertificate = [...record.certificates].reverse().find((certificate) => certificate.status === "Valid" || certificate.status === "Expired");
   if (currentCertificate) deadlines.push({ key: `certificate:${currentCertificate.id}`, event: "Certificate expiry", date: currentCertificate.expiryDate, severity: "critical" });
   if (record.retirementDueDate) deadlines.push({ key: "retirement", event: "Retirement due", date: record.retirementDueDate, severity: "warning" });
@@ -321,7 +326,7 @@ export function recalculateAlerts(state: AppState, timestamp = nowIso()): AppSta
     }
     for (const deadline of recordDeadlines(record, state.demoDate)) {
       const tier = deadlineTier(dateDiffDays(deadline.date, state.demoDate));
-      if (!tier) continue;
+      if (!tier || (deadline.tiers && !deadline.tiers.includes(tier))) continue;
       const occurrenceKey = `${record.id}:${deadline.key}:${deadline.date}`;
       currentKeys.add(occurrenceKey);
       const sameTier = next.find((alert) => alert.occurrenceKey === occurrenceKey && alert.tier === tier && alert.status === "open");
@@ -358,6 +363,23 @@ export function importRows(state: AppState, rows: RegisterRow[], actor = state.r
   const imported = rows.map((row) => rowToRecord(row, actor, timestamp));
   const next: AppState = { ...state, records: [...state.records, ...imported], activity: [activity("Register imported", `${rows.length} record${rows.length === 1 ? "" : "s"} added`, actor, timestamp), ...state.activity] };
   return recalculateAlerts(next, timestamp);
+}
+
+// The fields an FLS sheet row carries; the import preview compares the same ones to find updates.
+export const SYNCED_FIELDS = ["site", "owner", "licenceIssuedDate", "licenceExpiryDate", "remarks", "status"] as const;
+
+// An updated FLS sheet re-uploaded: matching buildings take the sheet's values. Unmatched rows are ignored; importRows adds those.
+export function updateRecords(state: AppState, rows: RegisterRow[], actor = state.role, timestamp = nowIso()): AppState {
+  if (!rows.length) return state;
+  const byRef = new Map(rows.map((row) => [row.assetRef.trim().toLowerCase(), row]));
+  const event = activity("Register synced", `${rows.length} record${rows.length === 1 ? "" : "s"} updated from the sheet`, actor, timestamp);
+  const records = state.records.map((record) => {
+    const row = byRef.get(record.assetRef.trim().toLowerCase());
+    if (!row) return record;
+    const fields = Object.fromEntries(SYNCED_FIELDS.map((field) => [field, row[field]]));
+    return { ...record, ...fields, activity: [{ ...event, id: makeId("activity"), detail: "Updated from the sheet" }, ...record.activity], updatedAt: timestamp };
+  });
+  return recalculateAlerts({ ...state, records, activity: [event, ...state.activity] }, timestamp);
 }
 
 export function getRecord(state: AppState, assetId: string): AssetRecord | undefined {

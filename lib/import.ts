@@ -1,6 +1,8 @@
 import * as XLSX from "xlsx";
-import { REGISTER_HEADERS, SAVING_HEADERS, type ImportPreview, type Saving } from "./types";
+import { REGISTER_HEADERS, SAVING_HEADERS, type AssetRecord, type ImportPreview, type Saving } from "./types";
 import { validateRegisterRows, validateSavingRows, type SavingsPreview } from "./domain";
+import { IS_FLS } from "./client";
+import { parseFlsWorkbook } from "./fls";
 
 export const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 export const MAX_IMPORT_ROWS = 500;
@@ -95,9 +97,16 @@ function savingsPreview(matrix: unknown[][], existingSavings: Saving[], firstRow
 
 // A workbook holds a Register sheet, a Savings sheet or both. A CSV has no sheets, so its savings block sits under the
 // register, after a blank row, starting at its own header row. Savings formula cells are read by their saved value.
-export async function parseImportFile(file: File, existingAssetRefs: string[] = [], existingSavings: Saving[] = []): Promise<FilePreview> {
+export async function parseImportFile(file: File, existingAssetRefs: string[] = [], existingSavings: Saving[] = [], existingRecords: AssetRecord[] = []): Promise<FilePreview> {
   if (file.size > MAX_IMPORT_BYTES) throw new Error("The file is larger than the 2MB limit");
   const name = file.name.toLowerCase();
+  // The FLS build reads the client's own tracker sheet as it is, and nothing else.
+  if (IS_FLS) {
+    if (!name.endsWith(".xlsx")) throw new Error("Upload the FLS DCD tracker as an .xlsx file");
+    const register = parseFlsWorkbook(await file.arrayBuffer(), existingRecords);
+    if (existingRecords.length + register.validRows.length > MAX_IMPORT_ROWS) throw new Error(`The demo is limited to ${MAX_IMPORT_ROWS} buildings in total. Reduce the file before importing.`);
+    return { register };
+  }
   if (name.endsWith(".csv")) {
     let text: string;
     try { text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer()); } catch { throw new Error("CSV must use UTF-8 encoding"); }
