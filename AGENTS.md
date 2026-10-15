@@ -19,5 +19,5 @@ This repo builds two client demos of KTrack from the same code. Each Vercel proj
 
 - A push to a branch deploys that branch's site. Pushing either branch, merging between them, or running `vercel --prod` is outward-facing: do it only when the user asks.
 - Kee work goes on `main`; FLS work goes on `fls`. On `fls`, FLS-only behaviour stays behind `IS_FLS` (`lib/client.ts`), so `main` can be merged into `fls` cleanly to bring Kee and shared fixes across.
-- Run the FLS build locally with `NEXT_PUBLIC_CLIENT=fls npm run dev -- --port 3001`. A separate port keeps its browser data apart from the Kee build's.
+- Next allows only one `next dev` per folder (it locks `.next/dev`), so keep one checkout per branch, side by side: `keetrack` on `fls` and `keetrack-main` on `main` (a git worktree, `git worktree add ../keetrack-main main`). Run `bun dev` in `keetrack-main` for Kee (port 3000) and `bun run dev:fls` in `keetrack` for FLS (port 3001). The separate ports also keep each build's browser data apart.
 - The repo is public. Never commit client files or client data: `contextforclient/` holds the FLS client's own spreadsheet and voice notes and is git-ignored.
