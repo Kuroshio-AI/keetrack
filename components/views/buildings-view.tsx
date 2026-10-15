@@ -25,6 +25,9 @@ const formFor = (record?: AssetRecord): Form => record
   ? { name: record.assetRef, category: record.site, provider: record.owner, issued: record.licenceIssuedDate ?? "", expiry: record.licenceExpiryDate ?? "", remarks: record.remarks ?? "", muted: record.status === "Retired" }
   : { name: "", category: "General", provider: "", issued: "", expiry: "", remarks: "", muted: false };
 
+// One click fills Date of issue (today) and Date of expiry (the day before the same date that many months on). Any other term: type the expiry.
+const RENEWAL_TERMS = [[6, "6 months"], [12, "1 year"], [24, "2 years"], [36, "3 years"]] as const;
+
 const STATUS_FILTERS = { all: "All", red: "Red", amber: "Amber", green: "Green", undated: "No dates", muted: "Muted" };
 const FILTER_HINTS: Record<StatusFilter, string> = { all: "Every building", red: "Due date passed or expired", amber: "Due within 14 days", green: "15 or more days to the due date", undated: "No certificate dates", muted: "Alerts muted" };
 type StatusFilter = keyof typeof STATUS_FILTERS;
@@ -142,8 +145,15 @@ export function BuildingsView() {
         <datalist id="fls-categories">{categories.map((item) => <option key={item} value={item} />)}</datalist>
         <datalist id="fls-providers">{providers.map((item) => <option key={item} value={item} />)}</datalist>
       </CardContent>
-      <div className="flex flex-wrap justify-between gap-2 border-t border-line p-5">
-        <Button variant="outline" onClick={() => set({ issued: state.demoDate, expiry: addDays(addMonthsClamped(state.demoDate, 12), -1) })}><RotateCcw data-icon="inline-start" />Renewed today: fill in a year</Button>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-5">
+        <div role="group" aria-label="Renewed today for" className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 inline-flex items-center gap-1.5 text-sm font-semibold text-navy"><RotateCcw className="size-4" aria-hidden="true" />Renewed today for</span>
+          {RENEWAL_TERMS.map(([months, label]) => {
+            const expiry = addDays(addMonthsClamped(state.demoDate, months), -1);
+            const active = form.issued === state.demoDate && form.expiry === expiry;
+            return <Button key={months} variant={active ? "default" : "outline"} size="sm" aria-pressed={active} onClick={() => set({ issued: state.demoDate, expiry })}>{label}</Button>;
+          })}
+        </div>
         <div className="flex gap-2"><Button variant="ghost" onClick={() => setEditing(undefined)}>Cancel</Button><Button onClick={save}>{editing === "new" ? "Add building" : "Save"}</Button></div>
       </div>
     </Card>}
