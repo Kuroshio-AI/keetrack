@@ -15,3 +15,5 @@ tmp/
 test-results/
 playwright-report/
 .vercel
+# Client brief, tracker sheet and voice notes: this repo is public, so they never get committed.
+/contextforclient/
