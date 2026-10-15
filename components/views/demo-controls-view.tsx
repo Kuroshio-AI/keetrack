@@ -147,7 +147,7 @@ export function DemoControlsView() {
         <div>
           <div className="eyebrow">Server-selected template</div>
           <p className="mt-2 rounded-lg border border-line bg-paper p-3 text-sm leading-relaxed text-navy">{whatsapp.templateName && whatsapp.templateLanguage ? `${whatsapp.templateName} · ${whatsapp.templateLanguage}` : "Template details appear when the server configuration is available."}</p>
-          <pre className="mt-2 overflow-x-auto rounded-lg border border-line bg-paper p-3 text-xs leading-relaxed text-navy">{IS_FLS ? `KTrack FLS certificate alert.\nEvent: {{1}}\nBuilding: {{2}}\nCategory: {{3}}\nSeverity: {{4}}\nDue date: {{5}}\nPlease review this building in KTrack.` : `KeeTrack maintenance alert for your registered equipment.\nEvent: {{1}}\nAsset: {{2}}\nSite: {{3}}\nSeverity: {{4}}\nDue date: {{5}}\nPlease review this item in your KeeTrack register.`}</pre>
+          <pre className="mt-2 overflow-x-auto rounded-lg border border-line bg-paper p-3 text-xs leading-relaxed text-navy">{`Kuroshio alert for your registered items.\nEvent: {{1}}\nItem: {{2}}\nLocation: {{3}}\nSeverity: {{4}}\nDate: {{5}}\nPlease review this alert in your dashboard.`}</pre>
           <p className="mt-2 text-xs leading-relaxed text-slate-500">Parameters are sent in order: event, asset reference, site, severity and due date. Meta determines the final template status and category. Acceptance means the request was accepted, not that delivery is confirmed.</p>
         </div>
       </CardContent>
