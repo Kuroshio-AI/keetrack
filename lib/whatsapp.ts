@@ -24,7 +24,7 @@ type Environment = Readonly<Record<string, string | undefined>>;
 export type WhatsAppConfig = Readonly<{
   accessToken: string;
   phoneNumberId: string;
-  to: string;
+  to: readonly string[];
   templateName: string;
   templateLanguage: string;
   graphApiVersion: string;
@@ -63,8 +63,8 @@ let inFlight = false;
 let lastTokenAttemptAt: number | undefined;
 const replayCache = new Map<string, CachedResponse>();
 
-// ponytail: unauthenticated public demo with a fixed recipient. The guard only limits a warm instance;
-// add authentication and shared rate limiting before expanding access or recipients.
+// ponytail: unauthenticated public demo with fixed server-side recipients. The guard only limits a warm instance;
+// add authentication and shared rate limiting before expanding access or letting the browser pick recipients.
 export function resetWhatsAppRuntimeForTests(): void {
   lastAttemptAt = undefined;
   inFlight = false;
@@ -104,20 +104,21 @@ export function isWhatsAppWebhookConfigValid(env: Environment = process.env): bo
 export function getWhatsAppConfig(env: Environment = process.env): WhatsAppConfig | undefined {
   const accessToken = rawValue(env, "META_WHATSAPP_ACCESS_TOKEN");
   const phoneNumberId = rawValue(env, "META_WHATSAPP_PHONE_NUMBER_ID");
-  const recipient = rawValue(env, "META_WHATSAPP_TO");
+  // One number, or several separated by commas; every alert goes to all of them.
+  const recipients = rawValue(env, "META_WHATSAPP_TO")?.split(",").map((value) => value.trim());
   const templateName = optionalValue(env, "META_WHATSAPP_TEMPLATE_NAME", DEFAULT_TEMPLATE_NAME);
   const templateLanguage = optionalValue(env, "META_WHATSAPP_TEMPLATE_LANGUAGE", DEFAULT_TEMPLATE_LANGUAGE);
   const graphApiVersion = optionalValue(env, "META_GRAPH_API_VERSION", DEFAULT_GRAPH_API_VERSION);
 
   if (!accessToken || hasForbiddenHeaderCharacters(accessToken) || accessToken.length > 4_096) return undefined;
   if (!phoneNumberId || !phoneNumberIdPattern.test(phoneNumberId)) return undefined;
-  if (!recipient || !recipientPattern.test(recipient)) return undefined;
+  if (!recipients?.every((value) => recipientPattern.test(value))) return undefined;
   if (!templateNamePattern.test(templateName) || !templateLanguagePattern.test(templateLanguage) || !graphApiVersionPattern.test(graphApiVersion)) return undefined;
 
   return {
     accessToken,
     phoneNumberId,
-    to: recipient.replace(/^\+/, ""),
+    to: recipients.map((value) => value.replace(/^\+/, "")),
     templateName,
     templateLanguage,
     graphApiVersion,
@@ -276,11 +277,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-async function sendToMeta(config: WhatsAppConfig, payload: WhatsAppAlertPayload, fetchImpl: WhatsAppFetch): Promise<ProviderResult> {
+async function sendToMeta(config: WhatsAppConfig, to: string, payload: WhatsAppAlertPayload, fetchImpl: WhatsAppFetch): Promise<ProviderResult> {
   const body = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
-    to: config.to,
+    to,
     type: "template",
     template: {
       name: config.templateName,
@@ -336,7 +337,7 @@ export async function handleWhatsAppGet(env: Environment = process.env, fetchImp
     webhookConfigured: isWhatsAppWebhookConfigValid(env),
     tokenUpdatable: isTokenUpdatable(env),
     ...(config ? {
-      recipientLabel: `WhatsApp ending in •••• ${config.to.slice(-4)}`,
+      recipientLabel: `WhatsApp ending in ${config.to.map((value) => `•••• ${value.slice(-4)}`).join(", ")}`,
       templateName: config.templateName,
       templateLanguage: config.templateLanguage,
       tokenSource,
@@ -370,13 +371,15 @@ export async function handleWhatsAppPost(request: Request, options: HandlerOptio
   lastAttemptAt = now;
   inFlight = true;
   try {
-    const result = await sendToMeta(config, payload, fetchImpl);
-    if (result.kind === "accepted") {
+    // A partial send counts as unconfirmed, so a retry can't message the numbers that already got it twice.
+    const kinds = new Set((await Promise.all(config.to.map((to) => sendToMeta(config, to, payload, fetchImpl)))).map((result) => result.kind));
+    const result = kinds.size === 1 ? [...kinds][0] : "ambiguous";
+    if (result === "accepted") {
       const body = { accepted: true, status: "accepted" };
       cacheResponse(payload.alertId, now, 200, body);
       return json(body);
     }
-    if (result.kind === "ambiguous") {
+    if (result === "ambiguous") {
       const body = { error: "WhatsApp status is unconfirmed. Check Meta before retrying." };
       cacheResponse(payload.alertId, now, 503, body);
       return json(body, 503);
