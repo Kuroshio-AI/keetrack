@@ -86,7 +86,7 @@ export function buildingStatus(record: Pick<AssetRecord, "status" | "licenceExpi
   return { expiryDays: dateDiffDays(record.licenceExpiryDate, demoDate), dueDate, dueDays, light: trafficLight(dueDays), muted };
 }
 
-const days = (count: number) => `${Math.abs(count)} day${Math.abs(count) === 1 ? "" : "s"}`;
+export const days = (count: number) => `${Math.abs(count)} day${Math.abs(count) === 1 ? "" : "s"}`;
 
 function digestLine(record: AssetRecord, { expiryDays = 0, dueDays = 0 }: BuildingStatus): string {
   const expiry = expiryDays < 0 ? `expired ${days(expiryDays)} ago` : expiryDays === 0 ? "expires today" : `expires in ${days(expiryDays)}`;

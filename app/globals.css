@@ -33,8 +33,11 @@ a { color: inherit; text-decoration: none; }
 .stamp { transform: rotate(-9deg); animation: stamp-in .45s .2s cubic-bezier(.3, 1.3, .5, 1) both; }
 @keyframes pop-in { 0% { opacity: 0; transform: scale(.6); } 70% { opacity: 1; transform: scale(1.06); } }
 .pop-in { animation: pop-in .45s .15s cubic-bezier(.3, 1.3, .5, 1) both; }
+/* Children rise in one after another, 40ms apart. */
+.stagger > * { animation: rise-in .32s cubic-bezier(.2, .8, .2, 1) both; }
+.stagger > :nth-child(2) { animation-delay: 40ms; } .stagger > :nth-child(3) { animation-delay: 80ms; } .stagger > :nth-child(4) { animation-delay: 120ms; } .stagger > :nth-child(5) { animation-delay: 160ms; } .stagger > :nth-child(n+6) { animation-delay: 200ms; }
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise, .stamp, .pop-in, .draw-check path { animation: none; stroke-dashoffset: 0; }
+  .animate-rise, .stamp, .pop-in, .draw-check path, .stagger > * { animation: none; stroke-dashoffset: 0; }
 }
 @media print {
   .print-hidden { display: none !important; }
@@ -44,3 +47,7 @@ a { color: inherit; text-decoration: none; }
   .certificate-print-area::backdrop { display: none; }
   @page { size: A4; margin: 12mm; }
 }
+
+/* A row just saved glows once where it landed, then settles. */
+@keyframes row-glow { from { background-color: #cfe8f3; } }
+.row-glow { animation: row-glow 1.4s ease-out; }

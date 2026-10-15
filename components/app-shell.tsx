@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion, MotionConfig } from "motion/react";
+import { RollingNumber } from "@/components/interior/value-flash";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Activity, AlertTriangle, BarChart3, BellRing, BookOpenCheck, Building2, CalendarCheck, ChevronRight, ClipboardList, FileBadge, FileCheck2, Import, Leaf, Menu, Settings2, ShieldCheck, X } from "lucide-react";
 import { AppProvider, useApp } from "@/components/app-provider";
@@ -56,7 +58,7 @@ const titles: Record<string, { eyebrow: string; title: string; description: stri
 
 const flsTitles: typeof titles = {
   dashboard: { eyebrow: "Compliance overview", title: "Dashboard", description: "Which buildings need their DCD certificate renewed, and the message to send this morning." },
-  register: { eyebrow: "Certificate tracker", title: "Buildings", description: "Every building's FLS DCD (AMC) certificate with the days left to its due date and expiry. Colours follow your sheet: green from 15 days, amber 1 to 14, red on the day and after." },
+  register: { eyebrow: "Certificate tracker", title: "Buildings", description: "Every building's FLS DCD (AMC) certificate, most urgent first. Colours follow your sheet's due date: green from 15 days, amber 1 to 14, red on the day and after." },
   import: { eyebrow: "Data intake", title: "Import", description: "Upload your FLS DCD tracker as it is. New buildings are added, and buildings already here take the sheet's latest dates." },
   alerts: { eyebrow: "Attention queue", title: "Alerts", description: "Reminders 30 days, 15 days (the due date), 7 days and 0 days before a certificate expires. Muted buildings never alert." },
   "demo-controls": { eyebrow: "Scenario lab", title: "Demo Controls", description: "Move the demo date, back up this workspace and check the WhatsApp setup." },
@@ -120,10 +122,10 @@ function AppFrame({ initialView }: { initialView: string }) {
       <div className="mx-2 mt-8 rounded-lg border border-[#467493] bg-[#123e60] px-3 py-3"><div className="flex items-center justify-between"><span className="eyebrow text-[#bad2e1]">Environment</span><Badge variant="warning" className="px-2 py-0.5 text-[9px]">Demo mode</Badge></div><p className="mt-2 text-xs leading-relaxed text-[#d6e7f1]">Local-first workspace. Records stay in this browser.</p></div>
       <nav className="mt-7 flex flex-1 flex-col gap-1" aria-label="Primary navigation">
         <span className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#80a9c2]">Workspace</span>
-        {shownNav.filter(({ id }) => id !== "demo-controls").map(({ id, label, icon: Icon }, index) => <Link ref={index === 0 ? firstNavLink : undefined} key={id} href={`/${id}`} onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${view === id ? "bg-white text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}><Icon className="size-[17px]" aria-hidden="true" /><span>{label}</span>{id === "alerts" && openAlerts > 0 ? <span className={`ml-auto grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${view === id ? "bg-[#fde8e8] text-[#a52e35]" : "bg-[#d74349] text-white"}`}>{openAlerts}</span> : <ChevronRight className={`ml-auto size-3 opacity-0 transition-opacity group-hover:opacity-60 ${view === id ? "hidden" : ""}`} />}</Link>)}
+        {shownNav.filter(({ id }) => id !== "demo-controls").map(({ id, label, icon: Icon }, index) => <Link ref={index === 0 ? firstNavLink : undefined} key={id} href={`/${id}`} onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${view === id ? "text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}>{view === id && <NavPill />}<Icon className="relative size-[17px] transition-transform group-hover:scale-110" aria-hidden="true" /><span className="relative">{label}</span>{id === "alerts" && openAlerts > 0 ? <span className={`relative ml-auto grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${view === id ? "bg-[#fde8e8] text-[#a52e35]" : "bg-[#d74349] text-white"}`}><RollingNumber value={openAlerts} /></span> : <ChevronRight className={`relative ml-auto size-3 -translate-x-1 opacity-0 transition-[opacity,transform] group-hover:translate-x-0 group-hover:opacity-60 ${view === id ? "hidden" : ""}`} />}</Link>)}
         <Separator className="my-5 bg-[#2a5774]" />
         <span className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#80a9c2]">Sandbox</span>
-        <Link href="/demo-controls" onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold ${view === "demo-controls" ? "bg-white text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}><Settings2 className="size-[17px]" /><span>Demo Controls</span></Link>
+        <Link href="/demo-controls" onClick={() => setMobileOpen(false)} tabIndex={isMobile && !mobileOpen ? -1 : 0} className={`focus-ring group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${view === "demo-controls" ? "text-[#0b3151]" : "text-[#d1e3ed] hover:bg-white/10 hover:text-white"}`}>{view === "demo-controls" && <NavPill />}<Settings2 className="relative size-[17px] transition-transform group-hover:rotate-45" /><span className="relative">Demo Controls</span></Link>
       </nav>
       <div className="border-t border-[#2a5774] px-2 pt-4 text-[11px] leading-relaxed text-[#9cbed2]"><div className="flex items-center gap-2"><Activity className="size-3" />Manual notifications only</div><div className="mt-1">v1.0 · {IS_FLS ? "demo workspace" : "fictional demo data"}</div></div>
     </aside>
@@ -135,4 +137,8 @@ function AppFrame({ initialView }: { initialView: string }) {
   </div>;
 }
 
-export function AppShell({ initialView }: { initialView: string }) { return <AppProvider><AppFrame initialView={initialView} /></AppProvider>; }
+// The active page's white pill: one shared layout id, so it slides from the old item to the new one.
+const NavPill = () => <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-lg bg-white" transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.45 }} />;
+
+// reducedMotion="user": under the OS reduced-motion setting, every animation below jumps straight to its end state.
+export function AppShell({ initialView }: { initialView: string }) { return <MotionConfig reducedMotion="user"><AppProvider><AppFrame initialView={initialView} /></AppProvider></MotionConfig>; }

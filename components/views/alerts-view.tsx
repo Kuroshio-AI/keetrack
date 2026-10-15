@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, Check, Filter, History, RotateCcw, Send } from "lucide-react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import { useApp } from "@/components/app-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -252,7 +253,7 @@ export function AlertsView() {
       </p>}
     </CardHeader>
     <CardContent className="p-4 sm:p-5">
-      {visible.length ? <div className="flex flex-col gap-2">
+      {visible.length ? <div className="flex flex-col gap-2"><AnimatePresence initial={false}>
         {visible.map((alert) => {
           const feedback = emailFeedback[alert.id];
           const emailSent = Boolean(alert.emailSentAt || localAccepted[alert.id] || feedback?.state === "sent");
@@ -262,7 +263,7 @@ export function AlertsView() {
           const whatsappPending = whatsappConfigured && !whatsappSent;
           const sending = feedback?.state === "sending" || whatsappAlertFeedback?.state === "sending";
           const notes = [feedback, whatsappAlertFeedback].filter((item, index, all): item is EmailFeedback => Boolean(item?.message && item.state !== "sending" && all.findIndex((other) => other?.message === item.message) === index));
-          return <div key={alert.id} className={`flex flex-col gap-3 rounded-lg border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${alert.status === "open" ? "border-line bg-white" : "border-line bg-paper opacity-80"}`}>
+          return <motion.div key={alert.id} layout="position" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.12 } }} transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.45 }} className={`flex flex-col gap-3 rounded-lg border px-3 py-3 sm:flex-row sm:items-center sm:justify-between ${alert.status === "open" ? "border-line bg-white" : "border-line bg-paper opacity-80"}`}>
             <div className="flex min-w-0 items-start gap-3">
               <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md ${alert.severity === "critical" ? "bg-[#fde8e8] text-danger" : alert.severity === "warning" ? "bg-[#fff2d7] text-[#8a5d00]" : "bg-[#e8f3f8] text-accent"}`}>
                 {alert.status === "resolved" ? <Check className="size-4" /> : alert.status === "history" ? <History className="size-4" /> : <BellRing className="size-4" />}
@@ -286,9 +287,9 @@ export function AlertsView() {
               {state.role !== "Manager" && (emailConfigured || whatsappConfigured) && <Button variant="outline" size="sm" disabled={Boolean(storageWarning) || isEmailSending || isWhatsAppSending || (!emailPending && !whatsappPending)} onClick={() => void sendAlert(alert, emailPending, whatsappPending)}><Send data-icon="inline-start" />{sending ? "Sending…" : !emailPending && !whatsappPending ? "Sent" : emailSent || whatsappSent ? "Retry" : "Send alert"}</Button>}
               {alert.status === "resolved" && <span className="flex items-center gap-1 text-xs font-semibold text-[#187348]"><RotateCcw className="size-3" />Resolved by condition</span>}
             </div>
-          </div>;
+          </motion.div>;
         })}
-      </div> : <div className="flex flex-col items-center justify-center px-4 py-16 text-center"><BellRing className="size-10 text-[#b8cedc]" /><h2 className="mt-4 font-semibold text-navy">No alerts in this view</h2><p className="mt-2 text-sm text-slate-500">Try a different filter or change the demo date.</p></div>}
+      </AnimatePresence></div> : <div className="flex flex-col items-center justify-center px-4 py-16 text-center"><BellRing className="size-10 text-[#b8cedc]" /><h2 className="mt-4 font-semibold text-navy">No alerts in this view</h2><p className="mt-2 text-sm text-slate-500">Try a different filter or change the demo date.</p></div>}
     </CardContent>
   </Card>;
 }

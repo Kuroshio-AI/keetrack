@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Copy, Mail, MessageCircle } from "lucide-react";
+import { Check, Copy, Mail, MessageCircle } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useApp } from "@/components/app-provider";
+import { useCopyToClipboard } from "@/components/interior/copy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { digestText, trafficLight, type Light } from "@/lib/fls";
@@ -23,11 +24,8 @@ export function DaysCell({ days }: { days?: number }) {
 // The demo stands in for the scheduled morning message: the same text, sent from the presenter's own WhatsApp or mail app.
 export function DigestCard() {
   const { state } = useApp();
-  const [copied, setCopied] = useState("");
+  const { copy, status } = useCopyToClipboard();
   const text = digestText(state);
-  async function copy() {
-    try { await navigator.clipboard.writeText(text); setCopied("Copied."); } catch { setCopied("Copy didn't work in this browser. Select the text instead."); }
-  }
   return <Card>
     <CardHeader>
       <div className="eyebrow">Daily digest</div>
@@ -39,8 +37,12 @@ export function DigestCard() {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button asChild size="sm"><a href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer"><MessageCircle data-icon="inline-start" />Open in WhatsApp</a></Button>
         <Button asChild variant="outline" size="sm"><a href={`mailto:?subject=${encodeURIComponent(text.split("\n")[0])}&body=${encodeURIComponent(text)}`}><Mail data-icon="inline-start" />Email</a></Button>
-        <Button variant="outline" size="sm" onClick={() => void copy()}><Copy data-icon="inline-start" />Copy</Button>
-        {copied && <span className="text-xs text-slate-500" role="status">{copied}</span>}
+        <Button variant="outline" size="sm" onClick={() => void copy(text)}>
+          <span className="relative grid size-4 place-items-center"><AnimatePresence initial={false} mode="popLayout"><motion.span key={status === "copied" ? "check" : "copy"} initial={{ opacity: 0, scale: 0.5, filter: "blur(2px)" }} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, scale: 0.5, filter: "blur(2px)" }} transition={{ type: "spring", stiffness: 520, damping: 34, mass: 0.45 }} className="col-start-1 row-start-1">{status === "copied" ? <Check className="size-4 text-[#187348]" /> : <Copy className="size-4" />}</motion.span></AnimatePresence></span>
+          <span className="grid"><span className={`col-start-1 row-start-1 ${status === "copied" ? "invisible" : ""}`}>Copy</span><span className={`col-start-1 row-start-1 ${status === "copied" ? "" : "invisible"}`} aria-hidden="true">Copied</span></span>
+        </Button>
+        <span className="sr-only" role="status">{status === "copied" ? "Copied." : ""}</span>
+        {status === "error" && <span className="text-xs text-danger" role="alert">Copy didn&apos;t work in this browser. Select the text instead.</span>}
       </div>
     </CardContent>
   </Card>;
