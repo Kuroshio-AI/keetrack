@@ -128,6 +128,7 @@ test("missing or invalid provider configuration fails before any Meta fetch", as
     { ...env, META_WHATSAPP_ACCESS_TOKEN: "token with whitespace" },
     { ...env, META_WHATSAPP_PHONE_NUMBER_ID: "sender-id" },
     { ...env, META_WHATSAPP_TO: "whatsapp:+15551234567" },
+    { ...env, META_WHATSAPP_TO: "+15551234567,whatsapp:+971501234567" },
     { ...env, META_WHATSAPP_TEMPLATE_NAME: "hello world" },
     { ...env, META_GRAPH_API_VERSION: "v26" },
   ];
@@ -226,6 +227,17 @@ test("accepted Meta responses send exactly five approved parameters from the req
     },
   });
   assert.equal(JSON.stringify(body).includes("private"), false);
+});
+
+test("several recipients each get the alert, and a partial send stays unconfirmed", async () => {
+  const twoEnv = { ...env, META_WHATSAPP_TO: "+15551234567, +971501234567" };
+  assert.equal((await (await handleWhatsAppGet(twoEnv)).json() as Record<string, unknown>).recipientLabel, "WhatsApp ending in •••• 4567, •••• 4567");
+  const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+  assert.equal((await handleWhatsAppPost(request(alertPayload), { env: twoEnv, fetch: acceptedFetch(calls), now: () => 1_000 })).status, 200);
+  assert.deepEqual(calls.map(({ init }) => JSON.parse(String(init?.body)).to), ["15551234567", "971501234567"]);
+  resetWhatsAppRuntimeForTests();
+  const partial: WhatsAppFetch = async (input, init) => JSON.parse(String(init?.body)).to === "971501234567" ? new Response("{}", { status: 400 }) : acceptedFetch([])(input, init);
+  assert.equal((await handleWhatsAppPost(request(alertPayload), { env: twoEnv, fetch: partial, now: () => 1_000 })).status, 503);
 });
 
 test("held and paused Meta submissions are accepted without claiming delivery", async () => {
