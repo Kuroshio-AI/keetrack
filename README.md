@@ -42,7 +42,7 @@ The same code also builds a Fire & Life Safety certificate tracker for a Dubai f
 - **Muting.** A building is muted when its provider is `NOT Under Us`, or its remarks say Closed, Under Renovation or Client will renew. Muted buildings never alert. You can toggle it per building.
 - **Colours** follow the sheet: green from 15 days, amber 1 to 14, red on the day and after.
 - **Alerts** come 30 days, 15 days (the due date), 7 days and 0 days before expiry, and again once overdue. The Dashboard digest card holds the morning message and opens it in WhatsApp or email to send by hand. There is still no scheduled or bulk sending.
-- **WhatsApp.** Both deployments send the same approved `kuroshio_alert` template from the same number. For FLS its five parameters carry the event, building, category, severity and due date.
+- **WhatsApp.** The FLS deployment sends its own approved `ktrack_fls_alert` template (set with `META_WHATSAPP_TEMPLATE_NAME`) from the same number as Kee. Its five parameters are the event, building, category, severity and due date, in the order the app already sends.
 - **Client data.** The client's files stay in the git-ignored `contextforclient/` folder. Never commit them: this repo is public.
 
 ## Register format and limits
