@@ -95,3 +95,35 @@ test("the digest names red and amber buildings and leaves muted ones out", () =>
   assert.match(text, /Green: 1 · Muted: 2/);
   assert.doesNotMatch(text, /Old Mill|Branch One/);
 });
+
+test("every PPM checklist fits the phone hand-off and keeps unique ids", async () => {
+  const { FLS_CHECKLISTS, checklistFrom } = await import("./fls-checklists");
+  const { parseFieldJob } = await import("./field");
+  assert.equal(new Set(FLS_CHECKLISTS.map((template) => template.id)).size, FLS_CHECKLISTS.length);
+  for (const template of FLS_CHECKLISTS) {
+    const checklist = checklistFrom(template).map(({ id, label, section }) => ({ id, label, section }));
+    const body = { assetRef: "Palm Court", assetType: template.title, site: "General", inspector: "Admin", checklist };
+    assert.ok(parseFieldJob(body), `${template.title} is rejected by the phone hand-off`);
+    // app/api/field/route.ts refuses a job over 32KB.
+    assert.ok(JSON.stringify(body).length < 32_768, `${template.title} is too large to send to a phone`);
+  }
+});
+
+test("an FLS checklist is approved with its Not Ok items and issues no certificate", async () => {
+  const { FLS_CHECKLISTS } = await import("./fls-checklists");
+  const template = FLS_CHECKLISTS.find((item) => item.id === "breeching-inlet")!;
+  let state = fls.importRows({ ...fls.createInitialState("2026-10-16"), role: "Admin" }, [{ assetRef: "Palm Court", recordType: "licence", assetType: fls.FLS_ASSET_TYPE, site: "General", owner: "Fireguard", status: "Active" }]);
+  const created = fls.createInspection(state, state.records[0].id, "Admin", "2026-10-16T08:00:00.000Z", template);
+  assert.equal(created.inspection.title, "Breeching inlet");
+  assert.equal(created.inspection.checklist[0].section, "Inspection");
+  state = fls.submitInspection(created.state, created.inspection.id);
+  assert.equal(fls.approveChecklist(state, created.inspection.id).inspections[0].status, "Draft", "unanswered items can't be submitted or approved");
+  const answered = created.inspection.checklist.map((item, index) => ({ ...item, result: index === 0 ? "fail" as const : "pass" as const }));
+  state = fls.submitInspection(fls.updateInspection(created.state, created.inspection.id, { checklist: answered }), created.inspection.id);
+  const approved = fls.approveChecklist(state, created.inspection.id, "Admin", "2026-10-16T09:00:00.000Z");
+  assert.equal(approved.inspections[0].status, "Approved");
+  assert.equal(approved.records[0].certificates.length, 0);
+  assert.equal(approved.alerts.some((alert) => alert.type === "review" && alert.status === "open"), false);
+  assert.match(approved.records[0].activity[0].detail, /Breeching inlet · 1 Not Ok/);
+  assert.ok(fls.validateStoredState(approved));
+});

@@ -36,13 +36,14 @@ Production demo: [kuroshio-ktrack.vercel.app](https://kuroshio-ktrack.vercel.app
 
 ## FLS profile (second client)
 
-The same code also builds a Fire & Life Safety certificate tracker for a Dubai facilities client. Set `NEXT_PUBLIC_CLIENT=fls` at build time, or run `npm run dev:fls` locally on port 3001. That build has five pages: Dashboard, Buildings, Alerts, Import and Demo Controls. It shows no Kee branding. Without the flag the Kee demo builds exactly as before.
+The same code also builds a Fire & Life Safety certificate tracker for a Dubai facilities client. Set `NEXT_PUBLIC_CLIENT=fls` at build time, or run `npm run dev:fls` locally on port 3001. That build has seven pages: Dashboard, Buildings, PPM checklists, Approvals, Alerts, Import and Demo Controls. It shows no Kee branding. Without the flag the Kee demo builds exactly as before.
 
 - **Import** reads the client's own `FLS DCD (AMC) certificate tracker` .xlsx as it is. That means the title block, the header row (`Sl. No`, `Building`, `Frequency`, `Date of Issue`, `Date of Expiry`, `Days Remaining for Expiry`, `Due Date`, `Days Remaining for Due Date`, `Service Provider`, `Remarks`) and the label rows that start a new group of sites. Days remaining and the due date (expiry − 15) are worked out again, never read from the sheet. When an updated sheet is uploaded again, it updates the buildings already in KTrack.
 - **Muting.** A building is muted when its provider is `NOT Under Us`, or its remarks say Closed, Under Renovation or Client will renew. Muted buildings never alert. You can toggle it per building.
 - **Colours** follow the sheet: green from 15 days, amber 1 to 14, red on the day and after.
 - **Alerts** come 30 days, 15 days (the due date), 7 days and 0 days before expiry, and again once overdue. The Dashboard digest card holds the morning message and opens it in WhatsApp or email to send by hand. There is still no scheduled or bulk sending.
 - **WhatsApp.** The FLS deployment sends its own approved `ktrack_fls_alert` template (set with `META_WHATSAPP_TEMPLATE_NAME`) from the same number as Kee. Its five parameters are the event, building, category, severity and due date, in the order the app already sends.
+- **PPM checklists** are the service provider's maintenance forms for 12 systems (fire alarm, sprinkler, hose reel, hydrant, suppression, electric, diesel and jockey pumps, breeching inlet, emergency lighting, extinguishers, zone control valves), kept in `lib/fls-checklists.ts`. Each item is answered Ok, Not Ok or N/A, on the laptop or a phone. The client representative approves it in Approvals; no certificate is issued, and Not Ok items stay on the record. The CBS battery readings sheet and the two location lists aren't included.
 - **Client data.** The client's files stay in the git-ignored `contextforclient/` folder. Never commit them: this repo is public.
 
 ## Register format and limits

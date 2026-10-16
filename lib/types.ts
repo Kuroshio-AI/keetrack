@@ -114,6 +114,8 @@ export type AssetRecord = RegisterRow & {
 export type ChecklistItem = {
   id: string;
   label: string;
+  // FLS PPM checklists group their items under the paper form's headings (Inspection, Testing, Maintenance).
+  section?: string;
   result: "pass" | "fail" | "na" | "pending";
 };
 
@@ -129,6 +131,8 @@ export type Inspection = {
   id: string;
   assetId: string;
   inspector: string;
+  // FLS only: which system's PPM checklist this is, such as "Fire alarm system".
+  title?: string;
   checklist: ChecklistItem[];
   photos?: InspectionPhoto[];
   // PNG drawn on the phone hand-off page; shown on the certificate's "Inspected by" line.

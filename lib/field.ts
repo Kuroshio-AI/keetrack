@@ -1,12 +1,14 @@
 import { photoBytes } from "@/lib/photos";
 
 // A phone hand-off session: the laptop posts the job, the phone posts the result, the laptop polls for it.
-export type FieldJob = { assetRef: string; assetType: string; site: string; inspector: string; checklist: { id: string; label: string }[] };
+export type FieldJob = { assetRef: string; assetType: string; site: string; inspector: string; checklist: { id: string; label: string; section?: string }[] };
 export type FieldResult = { results: Record<string, "pass" | "fail" | "na">; notes: string; photos: { name: string; dataUrl: string; bytes: number }[]; signature: string };
 export type FieldSession = { job: FieldJob; status: "waiting" | "opened" | "submitted"; result?: FieldResult };
 
 export const SESSION_TTL_SECONDS = 30 * 60;
 export const MAX_PHONE_PHOTOS = 3;
+// The longest FLS PPM checklist (diesel fire pump) has 45 items, some of them a few sentences long.
+export const MAX_CHECKLIST_ITEMS = 60;
 export const sessionKey = (id: string) => `field:${id}`;
 // Set once, atomically, by the first phone to open the link; every later request must present it.
 export const claimKey = (id: string) => `field:${id}:claim`;
@@ -18,8 +20,8 @@ const jpeg = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/;
 const png = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
 
 export function parseFieldJob(body: unknown): FieldJob | undefined {
-  if (!isRecord(body) || ![body.assetRef, body.assetType, body.site, body.inspector].every((value) => isText(value)) || !Array.isArray(body.checklist) || !body.checklist.length || body.checklist.length > 12) return undefined;
-  const checklist = body.checklist.map((item) => isRecord(item) && isText(item.id, 40) && isText(item.label, 200) ? { id: item.id, label: item.label } : undefined);
+  if (!isRecord(body) || ![body.assetRef, body.assetType, body.site, body.inspector].every((value) => isText(value)) || !Array.isArray(body.checklist) || !body.checklist.length || body.checklist.length > MAX_CHECKLIST_ITEMS) return undefined;
+  const checklist = body.checklist.map((item) => isRecord(item) && isText(item.id, 40) && isText(item.label, 400) && (item.section === undefined || isText(item.section, 60)) ? { id: item.id, label: item.label, ...(item.section !== undefined && { section: item.section as string }) } : undefined);
   if (checklist.some((item) => !item) || new Set(checklist.map((item) => item?.id)).size !== checklist.length) return undefined;
   return { assetRef: body.assetRef as string, assetType: body.assetType as string, site: body.site as string, inspector: body.inspector as string, checklist: checklist as FieldJob["checklist"] };
 }

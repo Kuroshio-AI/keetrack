@@ -39,9 +39,10 @@ const nav = [
   { id: "demo-controls", label: "Demo Controls", icon: Settings2 },
 ] as const;
 
-// The FLS build keeps only what a certificate tracker needs; Register becomes its Buildings table under the same URL.
-const FLS_VIEWS: string[] = ["dashboard", "register", "alerts", "import", "demo-controls"];
-const shownNav = IS_FLS ? nav.filter(({ id }) => FLS_VIEWS.includes(id)).map((item) => item.id === "register" ? { ...item, label: "Buildings", icon: Building2 } : item) : nav;
+// The FLS build keeps what a certificate tracker needs plus the service provider's PPM checklists; Register becomes its Buildings table under the same URL.
+const FLS_VIEWS: string[] = ["dashboard", "register", "inspections", "approvals", "alerts", "import", "demo-controls"];
+const FLS_LABELS: Record<string, { label: string; icon?: typeof Building2 }> = { register: { label: "Buildings", icon: Building2 }, inspections: { label: "PPM checklists" } };
+const shownNav = IS_FLS ? nav.filter(({ id }) => FLS_VIEWS.includes(id)).map((item) => ({ ...item, ...FLS_LABELS[item.id] })) : nav;
 
 const titles: Record<string, { eyebrow: string; title: string; description: string }> = {
   import: { eyebrow: "Data intake", title: "Import", description: "Validate a register or sustainability savings spreadsheet and review the rows before importing." },
@@ -59,6 +60,8 @@ const titles: Record<string, { eyebrow: string; title: string; description: stri
 const flsTitles: typeof titles = {
   dashboard: { eyebrow: "Compliance overview", title: "Dashboard", description: "Which buildings need their DCD certificate renewed, and the message to send this morning." },
   register: { eyebrow: "Certificate tracker", title: "Buildings", description: "Every building's FLS DCD (AMC) certificate, most urgent first. Colours follow your sheet's due date: green from 15 days, amber 1 to 14, red on the day and after." },
+  inspections: { eyebrow: "Service visits", title: "PPM checklists", description: "Fill in the service provider's checklist for a building's fire alarm, pumps, sprinklers and other systems, on this screen or a phone, then send it for approval." },
+  approvals: { eyebrow: "Client sign-off", title: "Approvals", description: "Check a submitted PPM checklist and approve it, or return it to the technician with a correction." },
   import: { eyebrow: "Data intake", title: "Import", description: "Upload your FLS DCD tracker as it is. New buildings are added, and buildings already here take the sheet's latest dates." },
   alerts: { eyebrow: "Attention queue", title: "Alerts", description: "Reminders 30 days, 15 days (the due date), 7 days and 0 days before a certificate expires. Muted buildings never alert." },
   "demo-controls": { eyebrow: "Scenario lab", title: "Demo Controls", description: "Move the demo date, back up this workspace and check the WhatsApp setup." },

@@ -4,3 +4,6 @@ export const IS_FLS = process.env.NEXT_PUBLIC_CLIENT === "fls";
 
 // The FLS sheet's Due Date is always 15 days before the certificate expires (=E-15).
 export const FLS_DUE_LEAD_DAYS = 15;
+
+// The FLS service provider's forms answer each item Ok, Not Ok or N/A; Kee's inspections say Pass and Fail.
+export const RESULT_LABELS = IS_FLS ? { pass: "Ok", fail: "Not Ok", na: "N/A" } : { pass: "Pass", fail: "Fail", na: "N/A" };

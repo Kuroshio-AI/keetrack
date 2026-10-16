@@ -3,14 +3,14 @@ import { SESSION_TTL_SECONDS, fieldStore, parseFieldJob, redis, sameOrigin, sess
 
 export const runtime = "nodejs";
 
-// ponytail: sessions are unauthenticated, bounded only by the 30-minute expiry and 8KB job size; add a rate limit if this leaves the demo.
+// ponytail: sessions are unauthenticated, bounded only by the 30-minute expiry and 32KB job size; add a rate limit if this leaves the demo.
 export async function POST(request: Request) {
   const store = fieldStore();
   if (!store) return NextResponse.json({ error: "Phone hand-off needs Upstash Redis (KV_REST_API_URL and KV_REST_API_TOKEN)." }, { status: 503 });
   if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin requests are not allowed" }, { status: 403 });
   if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
   const text = await request.text();
-  if (text.length > 8_192) return NextResponse.json({ error: "Request is too large" }, { status: 413 });
+  if (text.length > 32_768) return NextResponse.json({ error: "Request is too large" }, { status: 413 });
   let body: unknown;
   try { body = JSON.parse(text); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const job = parseFieldJob(body);

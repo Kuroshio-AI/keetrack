@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type PointerEvent } from "react";
 import { Camera, Check, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { IS_FLS, RESULT_LABELS } from "@/lib/client";
 import { MAX_PHONE_PHOTOS, type FieldJob, type FieldResult } from "@/lib/field";
 import { photoBytes, shrinkPhoto } from "@/lib/photos";
 
-const RESULTS = [{ value: "pass", label: "Pass", selected: "bg-success text-white" }, { value: "fail", label: "Fail", selected: "bg-danger text-white" }, { value: "na", label: "N/A", selected: "bg-slate-500 text-white" }] as const;
+const RESULTS = [{ value: "pass", label: RESULT_LABELS.pass, selected: "bg-success text-white" }, { value: "fail", label: RESULT_LABELS.fail, selected: "bg-danger text-white" }, { value: "na", label: RESULT_LABELS.na, selected: "bg-slate-500 text-white" }] as const;
 type Photo = FieldResult["photos"][number];
 
 // Draw with a finger or mouse; the canvas is 3x its CSS height so strokes stay crisp on phones.
@@ -113,13 +114,13 @@ export function FieldInspection({ id }: { id: string }) {
   const ready = job && job.checklist.every((item) => results[item.id]) && signature;
   return <main className="min-h-screen bg-[#f3f7f9] px-4 py-6" style={zoom === 1 ? undefined : { zoom }}>
     <div className="mx-auto max-w-md">
-      <div className="flex items-center gap-3"><img src="/kee-safety-logo.png" alt="Kee Safety" className="size-10" /><div><div className="text-[11px] font-bold uppercase tracking-[.18em] text-[#1684ab]">KTrack · Field inspection</div>{job && <div className="text-xs text-slate-500">Inspector: {job.inspector}</div>}</div></div>
+      <div className="flex items-center gap-3">{IS_FLS ? <span className="grid size-10 place-items-center rounded-xl bg-[#0b3151] text-xl font-black text-white" aria-hidden="true">K</span> : <img src="/kee-safety-logo.png" alt="Kee Safety" className="size-10" />}<div><div className="text-[11px] font-bold uppercase tracking-[.18em] text-[#1684ab]">KTrack · {IS_FLS ? "PPM checklist" : "Field inspection"}</div>{job && <div className="text-xs text-slate-500">{IS_FLS ? "Technician" : "Inspector"}: {job.inspector}</div>}</div></div>
       {screen === "loading" && <p className="mt-10 text-center text-sm text-slate-500" aria-live="polite">Opening inspection…</p>}
       {screen === "closed" && <div className="animate-rise mt-8 rounded-2xl border border-line bg-white p-6 text-center shadow-panel"><h1 className="text-xl font-bold text-navy">{closedTitle}</h1><p className="mt-2 text-sm text-slate-600" role="alert">{message}</p></div>}
       {screen === "sent" && job && <div className="animate-rise mt-8 rounded-2xl border border-line bg-white p-8 text-center shadow-panel">
         <span className="pop-in mx-auto grid size-20 place-items-center rounded-full bg-success text-white ring-8 ring-success/10"><Check className="draw-check size-10" strokeWidth={3} aria-hidden="true" /></span>
         <h1 className="mt-5 text-2xl font-bold tracking-tight text-navy">Sent for review</h1>
-        <p className="mt-2 text-sm text-slate-600">{job.assetRef} is now in Kee Safety’s approval queue. You can close this page.</p>
+        <p className="mt-2 text-sm text-slate-600">{job.assetRef} is now in {IS_FLS ? "the client representative’s" : "Kee Safety’s"} approval queue. You can close this page.</p>
       </div>}
       {screen === "form" && job && <form className="animate-rise mt-5 flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); if (ready) void submit(); }}>
         <div className="rounded-2xl border border-line bg-white p-5 shadow-panel">
@@ -129,13 +130,13 @@ export function FieldInspection({ id }: { id: string }) {
         </div>
         <fieldset className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 shadow-panel">
           <legend className="sr-only">Checklist</legend>
-          {job.checklist.map((item) => <div key={item.id} role="radiogroup" aria-label={item.label}>
+          {job.checklist.map((item, index, list) => <Fragment key={item.id}>{item.section && item.section !== list[index - 1]?.section && <div className={`eyebrow ${index ? "border-t border-line pt-4" : ""}`}>{item.section}</div>}<div role="radiogroup" aria-label={item.label}>
             <div className="text-sm font-semibold text-navy">{item.label}</div>
             <div className="mt-2 grid grid-cols-3 gap-1.5">{RESULTS.map(({ value, label, selected }) => <label key={value} className="cursor-pointer"><input type="radio" className="peer sr-only" name={item.id} value={value} checked={results[item.id] === value} onChange={() => setResults((current) => ({ ...current, [item.id]: value }))} /><span className={`block rounded-lg border py-3 text-center text-sm font-bold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-accent ${results[item.id] === value ? `${selected} border-transparent` : "border-line text-slate-600 active:bg-paper"}`}>{label}</span></label>)}</div>
-          </div>)}
+          </div></Fragment>)}
         </fieldset>
         <div className="rounded-2xl border border-line bg-white p-4 shadow-panel">
-          <label className="eyebrow" htmlFor="field-notes">Notes</label>
+          <label className="eyebrow" htmlFor="field-notes">{IS_FLS ? "Comments" : "Notes"}</label>
           <Textarea id="field-notes" className="mt-1.5" value={notes} maxLength={2000} onChange={(event) => setNotes(event.target.value)} placeholder="Observations or corrections…" />
           <div className="eyebrow mt-4">Evidence photos · up to {MAX_PHONE_PHOTOS}</div>
           {photos.length > 0 && <div className="mt-2 flex gap-2">{photos.map((photo, index) => <button key={index} type="button" className="relative" onClick={() => setPhotos((current) => current.filter((_, other) => other !== index))} aria-label={`Remove photo ${index + 1}`}><img src={photo.dataUrl} alt="" className="size-20 rounded-lg border border-line object-cover" /><span className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-navy text-[11px] font-bold text-white">×</span></button>)}</div>}
@@ -143,7 +144,7 @@ export function FieldInspection({ id }: { id: string }) {
           <p className="mt-1.5 text-xs text-slate-500">Any photo size works · shrunk automatically</p>
         </div>
         <div className="rounded-2xl border border-line bg-white p-4 shadow-panel">
-          <div className="eyebrow mb-2">Inspector signature</div>
+          <div className="eyebrow mb-2">{IS_FLS ? "Technician signature" : "Inspector signature"}</div>
           <SignaturePad onChange={setSignature} />
         </div>
         {message && <p className="rounded-lg bg-[#fff3f3] p-3 text-sm text-danger" role="alert">{message}</p>}

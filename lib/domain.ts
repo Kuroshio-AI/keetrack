@@ -24,6 +24,7 @@ import type {
 } from "./types";
 import { REGISTER_HEADERS } from "./types";
 import { FLS_DUE_LEAD_DAYS, IS_FLS } from "./client";
+import { checklistFrom, type ChecklistTemplate } from "./fls-checklists";
 
 export const STORAGE_KEY = "keetrack-demo-state";
 export const STORAGE_VERSION = 1 as const;
@@ -103,7 +104,8 @@ export function validateStoredState(value: unknown): value is AppState {
     const inspection = item as Partial<Inspection>;
     return isText(inspection.id) && isText(inspection.assetId) && isText(inspection.inspector)
       && ["Draft", "Submitted", "Returned", "Approved", "Issued"].includes(inspection.status as string)
-      && Array.isArray(inspection.checklist) && inspection.checklist.every((check) => Boolean(check && typeof check === "object" && isText((check as ChecklistItem).id) && isText((check as ChecklistItem).label) && ["pass", "fail", "na", "pending"].includes((check as ChecklistItem).result)))
+      && Array.isArray(inspection.checklist) && inspection.checklist.every((check) => Boolean(check && typeof check === "object" && isText((check as ChecklistItem).id) && isText((check as ChecklistItem).label) && ((check as ChecklistItem).section === undefined || isText((check as ChecklistItem).section)) && ["pass", "fail", "na", "pending"].includes((check as ChecklistItem).result)))
+      && (inspection.title === undefined || isText(inspection.title))
       && (!inspection.photos || (Array.isArray(inspection.photos) && inspection.photos.every((photo) => Boolean(photo && typeof photo === "object" && isText(photo.id) && isText(photo.name) && isText(photo.type) && isText(photo.dataUrl) && typeof photo.bytes === "number" && photo.bytes <= 200 * 1024))))
       && (inspection.signature === undefined || (typeof inspection.signature === "string" && inspection.signature.startsWith("data:image/png;base64,") && inspection.signature.length <= 90_000))
       && isText(inspection.notes) && isTimestamp(inspection.createdAt) && isTimestamp(inspection.updatedAt) && isOptionalDate(inspection.nextInspectionDate)
@@ -388,11 +390,12 @@ export function getRecord(state: AppState, assetId: string): AssetRecord | undef
 
 const DEFAULT_CHECKLIST = ["Identity and markings legible", "Components free from visible damage", "Fixings and anchor points secure", "Storage and use conditions acceptable"];
 
-export function createInspection(state: AppState, assetId: string, actor = state.role, timestamp = nowIso()): { state: AppState; inspection: Inspection } {
+// FLS inspections use one of the service provider's PPM checklists; Kee's use the default four checks.
+export function createInspection(state: AppState, assetId: string, actor = state.role, timestamp = nowIso(), template?: ChecklistTemplate): { state: AppState; inspection: Inspection } {
   const record = getRecord(state, assetId);
   if (record?.status !== "Active") throw new Error("Choose an active record to inspect.");
-  const checklist: ChecklistItem[] = DEFAULT_CHECKLIST.map((label, index) => ({ id: `check-${index + 1}`, label, result: "pending" }));
-  const inspection: Inspection = { id: makeId("inspection"), assetId, inspector: record.assignedEngineer || actor, checklist, notes: "", status: "Draft", createdAt: timestamp, updatedAt: timestamp };
+  const checklist: ChecklistItem[] = template ? checklistFrom(template) : DEFAULT_CHECKLIST.map((label, index) => ({ id: `check-${index + 1}`, label, result: "pending" }));
+  const inspection: Inspection = { id: makeId("inspection"), assetId, inspector: record.assignedEngineer || actor, ...(template && { title: template.title }), checklist, notes: "", status: "Draft", createdAt: timestamp, updatedAt: timestamp };
   return { state: { ...state, inspections: [inspection, ...state.inspections] }, inspection };
 }
 
@@ -441,6 +444,22 @@ export function approveInspection(state: AppState, id: string, expiryDate: strin
     activity: [activity("Certificate issued", `${record.assetRef} · ${certificate.number}`, actor, timestamp), ...state.activity],
   };
   return recalculateAlerts(next, timestamp);
+}
+
+// FLS: the client representative signs off a PPM checklist. No certificate comes of it, and Not Ok items are kept as found.
+export function approveChecklist(state: AppState, id: string, actor = state.role, timestamp = nowIso()): AppState {
+  const inspection = state.inspections.find((item) => item.id === id);
+  const record = inspection && getRecord(state, inspection.assetId);
+  if (!inspection || !record || inspection.status !== "Submitted" || inspection.checklist.some((item) => item.result === "pending")) return state;
+  const notOk = inspection.checklist.filter((item) => item.result === "fail").length;
+  const event = activity("Checklist approved", `${record.assetRef} · ${inspection.title ?? "Inspection"}${notOk ? ` · ${notOk} Not Ok` : ""}`, actor, timestamp);
+  return {
+    ...state,
+    inspections: state.inspections.map((item) => item.id === id ? { ...item, status: "Approved", reviewedAt: timestamp, updatedAt: timestamp } : item),
+    records: state.records.map((item) => item.id === record.id ? { ...item, activity: [event, ...item.activity], updatedAt: timestamp } : item),
+    alerts: state.alerts.map((alert): Alert => alert.occurrenceKey.startsWith(`review:${id}`) || alert.occurrenceKey.startsWith(`returned:${id}`) ? { ...alert, status: "resolved" } : alert),
+    activity: [event, ...state.activity],
+  };
 }
 
 export function setRole(state: AppState, role: Role): AppState {
