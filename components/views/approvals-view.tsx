@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, MessageSquareReply, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, FileText, MessageSquareReply, ShieldCheck, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
+import { ChecklistReportDialog } from "@/components/checklist-report";
 import { ChecklistSections } from "@/components/checklist-sections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ export function ApprovalsView() {
   // Approved work leaves the queue, so keep its receipt on screen until the reviewer moves on.
   const [issuedId, setIssuedId] = useState<string>();
   const [viewing, setViewing] = useState<InspectionPhoto>();
+  const [report, setReport] = useState<string>();
   const viewer = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (viewing) viewer.current?.showModal(); }, [viewing]);
   const receiptHeading = useRef<HTMLHeadingElement>(null);
@@ -59,6 +61,7 @@ export function ApprovalsView() {
   }
   return <div className="grid gap-5 xl:grid-cols-[.82fr_1.18fr]">
     {/* Clicking the dimmed backdrop targets the dialog itself, so it closes like Esc does. */}
+    {report && <ChecklistReportDialog inspectionId={report} onClose={() => setReport(undefined)} />}
     {viewing && createPortal(<dialog ref={viewer} aria-label={viewing.name} onClose={() => setViewing(undefined)} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }} className="animate-rise fixed inset-0 m-auto max-h-[94vh] max-w-[94vw] overflow-hidden rounded-xl bg-white p-2 backdrop:bg-black/75">
       <img src={viewing.dataUrl} alt={viewing.name} className="max-h-[calc(94vh-4rem)] w-auto rounded-lg object-contain" />
       <div className="flex items-center justify-between gap-3 px-2 pt-2"><span className="truncate text-xs text-slate-500">{viewing.name}</span><Button variant="ghost" size="sm" onClick={() => viewer.current?.close()}><X />Close</Button></div>
@@ -69,8 +72,8 @@ export function ApprovalsView() {
         <h2 ref={receiptHeading} tabIndex={-1} className="outline-none"><span className="eyebrow flex items-center gap-1.5 !text-success"><CheckCircle2 className="size-3.5" aria-hidden="true" />Checklist approved</span><span className="mt-2 block text-2xl font-bold tracking-tight text-navy">{issued.title ?? "Inspection"}</span></h2>
         <p className="-mt-2 text-sm text-slate-600">{issuedRecord.assetRef} · {issued.inspector}</p>
         <ResultCounts checklist={issued.checklist} />
-        <p className="text-xs text-slate-500">Saved to {issuedRecord.assetRef}&apos;s activity log. Not Ok items stay on the record as found.</p>
-        {queue.length > 0 && <div className="flex justify-end border-t border-line pt-4"><Button variant="outline" onClick={() => select()}>Review next · {queue.length} waiting</Button></div>}
+        <p className="text-xs text-slate-500">Saved to {issuedRecord.assetRef}&apos;s checklists.{issued.checklist.some((item) => item.result === "fail") && " The Not Ok items are in Alerts to follow up with the service provider."}</p>
+        <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">{queue.length > 0 && <Button variant="ghost" className="mr-auto" onClick={() => select()}>Review next · {queue.length} waiting</Button>}<Button asChild variant="outline"><Link href={`/register?asset=${issuedRecord.id}`}><Building2 data-icon="inline-start" />Open building</Link></Button><Button onClick={() => setReport(issued.id)}><FileText data-icon="inline-start" />View report</Button></div>
       </CardContent>
     </Card> : issuedCertificate && issuedRecord ? <Card className="animate-rise overflow-hidden">
       <div className="flex flex-col-reverse gap-5 border-b border-success/20 bg-success/[.06] px-5 py-6 sm:flex-row sm:items-start sm:justify-between sm:px-7">

@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowUp, BellOff, Plus, RotateCcw, Search, X } from "lucide-react";
+import { ArrowUp, BellOff, FileText, Plus, RotateCcw, Search, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useApp } from "@/components/app-provider";
+import { ChecklistReportDialog } from "@/components/checklist-report";
 import { DaysCell, LIGHTS } from "@/components/fls-panels";
 import { useSortableRows } from "@/components/interior/sortable-table";
 import { RollingNumber } from "@/components/interior/value-flash";
@@ -17,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { addDays, addMonthsClamped, dateDiffDays, importRows, makeId } from "@/lib/domain";
 import { buildingStatus, days, FLS_ASSET_TYPE, type BuildingStatus } from "@/lib/fls";
 import type { AssetRecord } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatLocalDate } from "@/lib/utils";
 
 type Form = { name: string; category: string; provider: string; issued: string; expiry: string; remarks: string; muted: boolean };
 
@@ -97,6 +98,9 @@ export function BuildingsView() {
   useEffect(() => { if (!justSaved) return; const timer = setTimeout(() => setJustSaved(""), 1600); return () => clearTimeout(timer); }, [justSaved]);
   const preview = buildingStatus({ licenceExpiryDate: form.expiry || undefined, status: form.muted ? "Retired" : "Active" }, state.demoDate);
   const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
+  // The open building's PPM checklists, newest first, and the one whose report is showing.
+  const checklists = state.inspections.filter((item) => item.assetId === editing && item.title);
+  const [report, setReport] = useState<string>();
 
   // The panel sits above the table, so bring it into view when a row far down is clicked.
   function open(record?: AssetRecord) { setEditing(record?.id ?? "new"); setForm(formFor(record)); setError(""); requestAnimationFrame(() => document.getElementById("building-panel")?.scrollIntoView({ block: "start" })); }
@@ -118,6 +122,7 @@ export function BuildingsView() {
   }
 
   return <div className="flex flex-col gap-5">
+    {report && <ChecklistReportDialog inspectionId={report} onClose={() => setReport(undefined)} />}
     {editing && <Card id="building-panel" className="animate-rise scroll-mt-24">
       <CardHeader className="flex-row items-start justify-between gap-3 border-b border-line">
         <div className="min-w-0">
@@ -142,6 +147,16 @@ export function BuildingsView() {
           <span><span className="font-semibold text-navy">Mute alerts for this building</span><span className="block text-xs text-slate-500">For sites that are closed, under renovation, renewed by the client or not under you. It stays in the list without alerting.</span></span>
         </label>
         {error && <p className="text-sm text-danger sm:col-span-2 lg:col-span-3" role="alert">{error}</p>}
+        {editing !== "new" && <div className="border-t border-line pt-4 sm:col-span-2 lg:col-span-3">
+          <div className="flex items-center justify-between gap-3"><div className="eyebrow">PPM checklists</div>{state.records.find((record) => record.id === editing)?.status === "Active" && <Button asChild variant="outline" size="sm"><Link href={`/inspections?asset=${editing}`}><Plus data-icon="inline-start" />Start a checklist</Link></Button>}</div>
+          {checklists.length ? <ul className="mt-2 divide-y divide-line rounded-lg border border-line">{checklists.map((item) => {
+            const notOk = item.checklist.filter((check) => check.result === "fail").length;
+            return <li key={item.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+              <span className="min-w-0 flex-1"><span className="block truncate font-semibold text-navy">{item.title}</span><span className="block text-xs text-slate-500"><span className={item.status === "Approved" ? "font-semibold text-[#187348]" : item.status === "Returned" ? "font-semibold text-danger" : ""}>{item.status}</span> · {formatLocalDate(item.reviewedAt ?? item.submittedAt ?? item.createdAt)}{notOk > 0 && <span className="font-semibold text-danger"> · {notOk} Not Ok</span>}</span></span>
+              {item.status === "Draft" ? <Button asChild variant="ghost" size="sm"><Link href="/inspections">Continue</Link></Button> : <Button variant="ghost" size="sm" onClick={() => setReport(item.id)}><FileText data-icon="inline-start" />Report</Button>}
+            </li>;
+          })}</ul> : <p className="mt-2 text-sm text-slate-500">No checklists for this building yet.</p>}
+        </div>}
         <datalist id="fls-categories">{categories.map((item) => <option key={item} value={item} />)}</datalist>
         <datalist id="fls-providers">{providers.map((item) => <option key={item} value={item} />)}</datalist>
       </CardContent>

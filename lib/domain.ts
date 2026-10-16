@@ -446,7 +446,7 @@ export function approveInspection(state: AppState, id: string, expiryDate: strin
   return recalculateAlerts(next, timestamp);
 }
 
-// FLS: the client representative signs off a PPM checklist. No certificate comes of it, and Not Ok items are kept as found.
+// FLS: the client representative signs off a PPM checklist. No certificate comes of it; Not Ok items are kept as found and open one alert to follow up.
 export function approveChecklist(state: AppState, id: string, actor = state.role, timestamp = nowIso()): AppState {
   const inspection = state.inspections.find((item) => item.id === id);
   const record = inspection && getRecord(state, inspection.assetId);
@@ -457,7 +457,10 @@ export function approveChecklist(state: AppState, id: string, actor = state.role
     ...state,
     inspections: state.inspections.map((item) => item.id === id ? { ...item, status: "Approved", reviewedAt: timestamp, updatedAt: timestamp } : item),
     records: state.records.map((item) => item.id === record.id ? { ...item, activity: [event, ...item.activity], updatedAt: timestamp } : item),
-    alerts: state.alerts.map((alert): Alert => alert.occurrenceKey.startsWith(`review:${id}`) || alert.occurrenceKey.startsWith(`returned:${id}`) ? { ...alert, status: "resolved" } : alert),
+    alerts: [
+      ...(notOk ? [{ id: makeId("alert"), occurrenceKey: `defects:${id}`, type: "review" as const, event: `${inspection.title ?? "Checklist"}: ${notOk} Not Ok item${notOk === 1 ? "" : "s"}`, assetId: record.id, assetRef: record.assetRef, owner: record.owner, timestamp, severity: "warning" as const, status: "open" as const }] : []),
+      ...state.alerts.map((alert): Alert => alert.occurrenceKey.startsWith(`review:${id}`) || alert.occurrenceKey.startsWith(`returned:${id}`) ? { ...alert, status: "resolved" } : alert),
+    ],
     activity: [event, ...state.activity],
   };
 }

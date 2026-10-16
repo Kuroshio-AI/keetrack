@@ -123,7 +123,8 @@ test("an FLS checklist is approved with its Not Ok items and issues no certifica
   const approved = fls.approveChecklist(state, created.inspection.id, "Admin", "2026-10-16T09:00:00.000Z");
   assert.equal(approved.inspections[0].status, "Approved");
   assert.equal(approved.records[0].certificates.length, 0);
-  assert.equal(approved.alerts.some((alert) => alert.type === "review" && alert.status === "open"), false);
+  assert.equal(approved.alerts.find((alert) => alert.occurrenceKey.startsWith("review:"))?.status, "resolved");
+  assert.equal(approved.alerts.find((alert) => alert.occurrenceKey.startsWith("defects:"))?.event, "Breeching inlet: 1 Not Ok item");
   assert.match(approved.records[0].activity[0].detail, /Breeching inlet · 1 Not Ok/);
   assert.ok(fls.validateStoredState(approved));
 });
