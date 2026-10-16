@@ -1,14 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Camera, Check, Send } from "lucide-react";
+import { ChecklistSections } from "@/components/checklist-sections";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { IS_FLS, RESULT_LABELS } from "@/lib/client";
+import { IS_FLS } from "@/lib/client";
 import { MAX_PHONE_PHOTOS, type FieldJob, type FieldResult } from "@/lib/field";
 import { photoBytes, shrinkPhoto } from "@/lib/photos";
 
-const RESULTS = [{ value: "pass", label: RESULT_LABELS.pass, selected: "bg-success text-white" }, { value: "fail", label: RESULT_LABELS.fail, selected: "bg-danger text-white" }, { value: "na", label: RESULT_LABELS.na, selected: "bg-slate-500 text-white" }] as const;
 type Photo = FieldResult["photos"][number];
 
 // Draw with a finger or mouse; the canvas is 3x its CSS height so strokes stay crisp on phones.
@@ -128,13 +128,7 @@ export function FieldInspection({ id }: { id: string }) {
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-navy">{job.assetRef}</h1>
           <p className="text-sm text-slate-500">{job.assetType}</p>
         </div>
-        <fieldset className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 shadow-panel">
-          <legend className="sr-only">Checklist</legend>
-          {job.checklist.map((item, index, list) => <Fragment key={item.id}>{item.section && item.section !== list[index - 1]?.section && <div className={`eyebrow ${index ? "border-t border-line pt-4" : ""}`}>{item.section}</div>}<div role="radiogroup" aria-label={item.label}>
-            <div className="text-sm font-semibold text-navy">{item.label}</div>
-            <div className="mt-2 grid grid-cols-3 gap-1.5">{RESULTS.map(({ value, label, selected }) => <label key={value} className="cursor-pointer"><input type="radio" className="peer sr-only" name={item.id} value={value} checked={results[item.id] === value} onChange={() => setResults((current) => ({ ...current, [item.id]: value }))} /><span className={`block rounded-lg border py-3 text-center text-sm font-bold transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-accent ${results[item.id] === value ? `${selected} border-transparent` : "border-line text-slate-600 active:bg-paper"}`}>{label}</span></label>)}</div>
-          </div></Fragment>)}
-        </fieldset>
+        <ChecklistSections name="field" items={job.checklist} results={results} onAnswer={(answers) => setResults((current) => ({ ...current, ...answers }))} stickyProgress />
         <div className="rounded-2xl border border-line bg-white p-4 shadow-panel">
           <label className="eyebrow" htmlFor="field-notes">{IS_FLS ? "Comments" : "Notes"}</label>
           <Textarea id="field-notes" className="mt-1.5" value={notes} maxLength={2000} onChange={(event) => setNotes(event.target.value)} placeholder="Observations or corrections…" />
